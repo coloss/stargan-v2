@@ -37,21 +37,27 @@ def main(args):
     solver = Solver(args)
 
     if args.mode == 'train':
-        assert len(subdirs(args.train_img_dir)) == args.num_domains
-        assert len(subdirs(args.val_img_dir)) == args.num_domains
-        loaders = Munch(src=get_train_loader(root=args.train_img_dir,
+        if not hasattr(args, 'domain_names') or len(args.domain_names) == 0:
+            assert len(subdirs(args.train_img_dir)) == args.num_domains
+            assert len(subdirs(args.val_img_dir)) == args.num_domains
+        else:
+            assert len(args.domain_names) == args.num_domains
+
+        loaders = Munch(src=get_train_loader(root= args.train_img_dir,
                                              which='source',
+                                             domain_names=args.domain_names,
                                              img_size=args.img_size,
                                              batch_size=args.batch_size,
                                              prob=args.randcrop_prob,
                                              num_workers=args.num_workers),
-                        ref=get_train_loader(root=args.train_img_dir,
+                        ref=get_train_loader(root= args.train_img_dir,
                                              which='reference',
+                                             domain_names=args.domain_names,
                                              img_size=args.img_size,
                                              batch_size=args.batch_size,
                                              prob=args.randcrop_prob,
                                              num_workers=args.num_workers),
-                        val=get_test_loader(root=args.val_img_dir,
+                        val=get_test_loader(root= args.val_img_dir,
                                             img_size=args.img_size,
                                             batch_size=args.val_batch_size,
                                             shuffle=True,
@@ -88,6 +94,8 @@ if __name__ == '__main__':
                         help='Image resolution')
     parser.add_argument('--num_domains', type=int, default=2,
                         help='Number of domains')
+    parser.add_argument('--domain_names', nargs="*", default=[],
+                        help='Specify domain subfolder by name instead')
     parser.add_argument('--latent_dim', type=int, default=16,
                         help='Latent vector dimension')
     parser.add_argument('--hidden_dim', type=int, default=512,

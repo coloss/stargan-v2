@@ -22,7 +22,7 @@ from torch.utils import data
 from torch.utils.data.sampler import WeightedRandomSampler
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
-
+import glob
 
 def listdir(dname):
     fnames = list(chain(*[list(Path(dname).rglob('*.' + ext))
@@ -85,8 +85,67 @@ def _make_balanced_sampler(labels):
     return WeightedRandomSampler(weights, len(weights))
 
 
+class MultiFolderImageDataset(data.Dataset):
+
+    def __init__(self, root, subfolders, transform=None, recursive=True, reference=False):
+        super().__init__()
+        self.transform = transform
+        self.samples = []
+        self.reference = reference
+        if reference:
+            self.samples2 = []
+        else:
+            self.samples2 = None
+        self.labels = []
+        self.targets = []
+        from torchvision.datasets import folder as df
+
+        for folder in subfolders:
+            self.labels += [folder]
+            samples_in_folder = []
+            for ext in df.IMG_EXTENSIONS:
+                if recursive:
+                    # samples_in_folder += sorted(list(Path(root).rglob(f"**/{folder}/**/*" + ext)))
+                    samples_in_folder += sorted(list(glob.glob(str(Path(root) / (f"**/{folder}/**/*" + ext)), recursive=True)))
+                else:
+                    # samples_in_folder += sorted(list(Path(root).glob(f"{folder}/*" + ext)))
+                    samples_in_folder += sorted(list(glob.glob(str(Path(root) / (f"{folder}/*" + ext)), recursive=False)))
+            self.samples += samples_in_folder
+            if self.samples2 is not None:
+                self.samples2 += random.sample(samples_in_folder, len(samples_in_folder))
+            self.targets += [len(self.labels) - 1] * len(samples_in_folder)
+        self.loader = df.default_loader
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (sample, target) where target is class_index of the target class.
+        """
+        path = self.samples[index]
+        target = self.targets[index]
+        sample = self.loader(path)
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        if not self.reference:
+            return sample, target
+
+        path2 = self.samples[index]
+        sample2 = self.loader(path2)
+        if self.transform is not None:
+            sample2 = self.transform(sample2)
+        return sample, sample2, target
+
+
 def get_train_loader(root, which='source', img_size=256,
-                     batch_size=8, prob=0.5, num_workers=4):
+                     batch_size=8, prob=0.5, num_workers=4,
+                     domain_names=None):
     print('Preparing DataLoader to fetch %s images '
           'during the training phase...' % which)
 
@@ -103,11 +162,16 @@ def get_train_loader(root, which='source', img_size=256,
         transforms.Normalize(mean=[0.5, 0.5, 0.5],
                              std=[0.5, 0.5, 0.5]),
     ])
-
     if which == 'source':
-        dataset = ImageFolder(root, transform)
+        if domain_names is None or len(domain_names) == 0:
+            dataset = ImageFolder(root, transform)
+        else:
+            dataset = MultiFolderImageDataset(root, domain_names, transform, recursive=True)
     elif which == 'reference':
-        dataset = ReferenceDataset(root, transform)
+        if domain_names is None or len(domain_names) == 0:
+            dataset = ReferenceDataset(root, transform)
+        else:
+            dataset = MultiFolderImageDataset(root, domain_names, transform, recursive=True, reference=True)
     else:
         raise NotImplementedError
 
@@ -150,7 +214,8 @@ def get_eval_loader(root, img_size=256, batch_size=32,
 
 
 def get_test_loader(root, img_size=256, batch_size=32,
-                    shuffle=True, num_workers=4):
+                    shuffle=True, num_workers=4,
+                    domain_names=None):
     print('Preparing DataLoader for the generation phase...')
     transform = transforms.Compose([
         transforms.Resize([img_size, img_size]),
@@ -159,7 +224,10 @@ def get_test_loader(root, img_size=256, batch_size=32,
                              std=[0.5, 0.5, 0.5]),
     ])
 
-    dataset = ImageFolder(root, transform)
+    if domain_names is None or len(domain_names) == 0:
+        dataset = ImageFolder(root, transform)
+    else:
+        dataset = MultiFolderImageDataset(root, domain_names, transform, recursive=True)
     return data.DataLoader(dataset=dataset,
                            batch_size=batch_size,
                            shuffle=shuffle,

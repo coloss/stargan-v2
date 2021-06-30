@@ -25,6 +25,9 @@ import core.utils as utils
 from metrics.eval import calculate_metrics
 
 
+import numpy as np
+import matplotlib.pyplot as plt
+
 class Solver(nn.Module):
     def __init__(self, args):
         super().__init__()
@@ -104,6 +107,26 @@ class Solver(nn.Module):
             z_trg, z_trg2 = inputs.z_trg, inputs.z_trg2
 
             masks = nets.fan.get_heatmap(x_real) if args.w_hpf > 0 else None
+
+            # idx = 0
+            # for idx in range(1, x_real.shape[0]):
+            #     x_real_np = np.transpose(x_real.detach().cpu().numpy()[idx], [1,2,0])
+            #     x_ref_np = np.transpose(x_ref.detach().cpu().numpy()[idx], [1,2,0])
+            #     x_ref2_np = np.transpose(x_ref2.detach().cpu().numpy()[idx], [1,2,0])
+            #     masks0_np = np.transpose(masks[0].detach().cpu().numpy()[idx], [1,2,0])
+            #     masks1_np = np.transpose(masks[1].detach().cpu().numpy()[idx], [1,2,0])
+
+            #     plt.figure()
+            #     plt.imshow(x_real_np)
+            #     plt.figure()
+            #     plt.imshow(x_ref_np)
+            #     plt.figure()
+            #     plt.imshow(x_ref2_np)
+            #     plt.figure()
+            #     plt.imshow(masks0_np)
+            #     plt.figure()
+            #     plt.imshow(masks1_np)
+            # plt.show()
 
             # train the discriminator
             d_loss, d_losses_latent = compute_d_loss(
