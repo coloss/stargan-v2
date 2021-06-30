@@ -58,6 +58,7 @@ def main(args):
                                              prob=args.randcrop_prob,
                                              num_workers=args.num_workers),
                         val=get_test_loader(root= args.val_img_dir,
+                                            domain_names=args.domain_names,
                                             img_size=args.img_size,
                                             batch_size=args.val_batch_size,
                                             shuffle=True,
