@@ -222,6 +222,7 @@ class MappingNetwork(nn.Module):
 class StyleEncoder(nn.Module):
     def __init__(self, img_size=256, style_dim=64, num_domains=2, max_conv_dim=512):
         super().__init__()
+        img_size = max(256, img_size)
         dim_in = 2**14 // img_size
         blocks = []
         blocks += [nn.Conv2d(3, dim_in, 3, 1, 1)]
@@ -280,7 +281,134 @@ class Discriminator(nn.Module):
         return out
 
 
-def build_model(args):
+class MorphGANStyleEncoder(nn.Module):
+    def __init__(self, img_size=224, style_dim=64, num_domains=1, max_conv_dim=512,
+                 inital_conv_filter_size=1):
+        #TODO: tend to these differences
+        # inital_conv_filter_size  = 3 # originally
+
+        super().__init__()
+        dim_in = 2**14 // img_size # TODO: can this work for 224?
+        blocks = []
+        blocks += [nn.Conv2d(3, dim_in, inital_conv_filter_size, 1, 1)]
+
+        repeat_num = int(np.log2(img_size)) - 2
+        for _ in range(repeat_num):
+            dim_out = min(dim_in*2, max_conv_dim)
+            blocks += [ResBlk(dim_in, dim_out, downsample=True)]
+            dim_in = dim_out
+
+        blocks += [nn.LeakyReLU(0.2)]
+        final_conv_filter_size = 4
+        blocks += [nn.Conv2d(dim_out, dim_out, final_conv_filter_size, 1, 0)]
+        blocks += [nn.LeakyReLU(0.2)]
+        self.shared = nn.Sequential(*blocks)
+
+        self.unshared = nn.ModuleList()
+        for _ in range(num_domains):
+            self.unshared += [nn.Linear(dim_out, style_dim)]
+
+    def forward(self, x, y):
+        h = self.shared(x)
+        h = h.view(h.size(0), -1)
+        out = []
+        for layer in self.unshared:
+            out += [layer(h)]
+        out = torch.stack(out, dim=1)  # (batch, num_domains, style_dim)
+        idx = torch.LongTensor(range(y.size(0))).to(y.device)
+        s = out[idx, y]  # (batch, style_dim)
+        return s
+
+
+class GlobalMorphGANDiscriminator(nn.Module):
+    def __init__(self, img_size=256, num_domains=1, max_conv_dim=512, inital_conv_filter_size=1, style_dim=1024):
+        super().__init__()
+        #TODO: tend to these differences
+        # inital_conv_filter_size  = 3 # originally
+        # in_channels = 3 # oroginally, but morphgan passes a shape render, too
+        in_channels = 6
+
+        dim_in = 2**14 // img_size
+        image_blocks = []
+        image_blocks += [nn.Conv2d(in_channels, dim_in, inital_conv_filter_size, 1, 1)]
+
+        repeat_num = int(np.log2(img_size)) - 2
+        for _ in range(repeat_num):
+            dim_out = min(dim_in*2, max_conv_dim)
+            image_blocks += [ResBlk(dim_in, dim_out, downsample=True)]
+            dim_in = dim_out
+
+        image_blocks += [nn.LeakyReLU(0.2)]
+        ## TODO: should these be here?, morphGAn paper does not mention them
+        # final_conv_filter_size = 4
+        # blocks += [nn.Conv2d(dim_out, dim_out, final_conv_filter_size, 1, 0)]
+        # blocks += [nn.LeakyReLU(0.2)]
+        self.image_part = nn.Sequential(*image_blocks)
+
+
+        # MorphGAN claims style_dim=1024, which is a bit much considering StarGAN only has 64
+
+        style_blocks = []
+        style_blocks += [nn.Linear(style_dim, 512)]
+        style_blocks += [nn.LeakyReLU(0.2)]
+        style_blocks += [nn.Linear(512, 256)]
+        style_blocks += [nn.LeakyReLU(0.2)]
+        style_blocks += [nn.Linear(256, 128)]
+        style_blocks += [nn.LeakyReLU(0.2)]
+        style_blocks += [nn.Linear(128, 32)]
+        style_blocks += [nn.LeakyReLU(0.2)]
+        self.style_part = nn.Sequential(*style_blocks)
+
+        common_blocks = []
+        common_blocks += [nn.Linear(64, 32)]
+        # common_blocks += [nn.LeakyReLU(0.2)]
+        common_blocks += [nn.ReLU()]
+        common_blocks += [nn.Linear(32, 16)]
+        # common_blocks += [nn.LeakyReLU(0.2)]
+        common_blocks += [nn.ReLU()]
+        common_blocks += [nn.Linear(16, num_domains)]
+        self.common_part = nn.Sequential(*common_blocks)
+
+    def forward(self, x, y):
+        out_im = self.image_part(x)
+        out_style = self.style_part(x)
+        out = np.concatenate([out_im, out_style])
+        out = out.view(out.size(0), -1)  # (batch, num_domains)
+        idx = torch.LongTensor(range(y.size(0))).to(y.device)
+        out = out[idx, y]  # (batch)
+        return out
+
+
+class PatchMorphGANDiscriminator(nn.Module):
+
+    def __init__(self,  img_size=224, num_domains=1, max_conv_dim=512, inital_conv_filter_size=1):
+        super().__init__()
+        # Patch discriminator only takes a single REAL image
+        in_channels = 3
+
+        dim_in = 2**14 // img_size
+        image_blocks = []
+        image_blocks += [nn.Conv2d(in_channels, dim_in, inital_conv_filter_size, 1, 1)]
+
+        repeat_num = int(np.log2(img_size)) - 2
+        for _ in range(repeat_num):
+            dim_out = min(dim_in*2, max_conv_dim)
+            image_blocks += [ResBlk(dim_in, dim_out, downsample=True)]
+            dim_in = dim_out
+
+        image_blocks += [nn.LeakyReLU(0.2)]
+        ## TODO: should these be here?, morphGAn paper does not mention them
+        # final_conv_filter_size = 4
+        # blocks += [nn.Conv2d(dim_out, dim_out, final_conv_filter_size, 1, 0)]
+        # blocks += [nn.LeakyReLU(0.2)]
+        self.image_part = nn.Sequential(*image_blocks)
+
+    def forward(self, x):
+        patches = self.image_part(x)
+        return patches
+
+
+def build_model_stargan(args):
     generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf))
     mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, args.num_domains))
     style_encoder = nn.DataParallel(StyleEncoder(args.img_size, args.style_dim, args.num_domains))
@@ -293,6 +421,40 @@ def build_model(args):
                  mapping_network=mapping_network,
                  style_encoder=style_encoder,
                  discriminator=discriminator)
+    nets_ema = Munch(generator=generator_ema,
+                     mapping_network=mapping_network_ema,
+                     style_encoder=style_encoder_ema)
+
+    if args.w_hpf > 0:
+        fan = nn.DataParallel(FAN(fname_pretrained=args.wing_path).eval())
+        fan.get_heatmap = fan.module.get_heatmap
+        nets.fan = fan
+        nets_ema.fan = fan
+
+    return nets, nets_ema
+
+
+
+def build_model_MorphGAN(args):
+    generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf))
+    # mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, 1))
+    mapping_network = None
+    style_encoder = nn.DataParallel(MorphGANStyleEncoder(args.img_size, args.style_dim, 1))
+    discriminator_global = nn.DataParallel(GlobalMorphGANDiscriminator(args.img_size, 1, style_dim=args.style_dim))
+    discriminator_patch = nn.DataParallel(PatchMorphGANDiscriminator(args.img_size, 1))
+    #TODO: create a global and patch discriminator (later)
+
+    generator_ema = copy.deepcopy(generator)
+    # mapping_network_ema = copy.deepcopy(mapping_network)
+    mapping_network_ema = None
+    style_encoder_ema = copy.deepcopy(style_encoder)
+
+    nets = Munch(generator=generator,
+                 mapping_network=mapping_network,
+                 style_encoder=style_encoder,
+                 discriminator_global=discriminator_global,
+                 discriminator_patch=discriminator_patch,
+                 )
     nets_ema = Munch(generator=generator_ema,
                      mapping_network=mapping_network_ema,
                      style_encoder=style_encoder_ema)
