@@ -328,14 +328,14 @@ class InputFetcher:
             inputs = Munch(x_src=x, y_src=y)
             if self.loader_ref is not None:
                 x_ref, x_ref2, y_ref = self._fetch_refs()
-                inputs.x_ref = x_ref
-                inputs.x_ref2 = x_ref2
-                inputs.y_ref2 = y_ref
+                inputs['x_ref'] = x_ref
+                inputs['x_ref2'] = x_ref2
+                inputs['y_ref2'] = y_ref
             if self.latent_dim > 0:
                 z_trg = torch.randn(x.size(0), self.latent_dim)
                 z_trg2 = torch.randn(x.size(0), self.latent_dim)
-                inputs.z_trg = z_trg
-                inputs.z_trg2 = z_trg2
+                inputs['z_trg'] = z_trg
+                inputs['z_trg2'] = z_trg2
 
         elif self.mode == 'val':
             x_ref, y_ref = self._fetch_inputs()
