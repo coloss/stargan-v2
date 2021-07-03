@@ -188,25 +188,25 @@ class Generator(nn.Module):
 
 
 class MappingNetwork(nn.Module):
-    def __init__(self, latent_dim=16, style_dim=64, num_domains=2):
+    def __init__(self, latent_dim=16, style_dim=64, num_domains=2, hidden_dim=512):
         super().__init__()
         layers = []
-        layers += [nn.Linear(latent_dim, 512)]
+        layers += [nn.Linear(latent_dim, hidden_dim)]
         layers += [nn.ReLU()]
         for _ in range(3):
-            layers += [nn.Linear(512, 512)]
+            layers += [nn.Linear(hidden_dim, hidden_dim)]
             layers += [nn.ReLU()]
         self.shared = nn.Sequential(*layers)
 
         self.unshared = nn.ModuleList()
         for _ in range(num_domains):
-            self.unshared += [nn.Sequential(nn.Linear(512, 512),
+            self.unshared += [nn.Sequential(nn.Linear(hidden_dim, hidden_dim),
                                             nn.ReLU(),
-                                            nn.Linear(512, 512),
+                                            nn.Linear(hidden_dim, hidden_dim),
                                             nn.ReLU(),
-                                            nn.Linear(512, 512),
+                                            nn.Linear(hidden_dim, hidden_dim),
                                             nn.ReLU(),
-                                            nn.Linear(512, style_dim))]
+                                            nn.Linear(hidden_dim, style_dim))]
 
     def forward(self, z, y):
         h = self.shared(z)
@@ -410,7 +410,7 @@ class PatchMorphGANDiscriminator(nn.Module):
 
 def build_model_stargan(args):
     generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf))
-    mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, args.num_domains))
+    mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, args.num_domains, args.hidden_dim))
     style_encoder = nn.DataParallel(StyleEncoder(args.img_size, args.style_dim, args.num_domains))
     discriminator = nn.DataParallel(Discriminator(args.img_size, args.num_domains))
     generator_ema = copy.deepcopy(generator)
@@ -435,9 +435,36 @@ def build_model_stargan(args):
 
 
 
+def build_model_dualstargan(args):
+    generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf))
+    # mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, args.num_domains, args.hidden_dim))
+    style_encoder = nn.DataParallel(StyleEncoder(args.img_size, args.style_dim, args.num_domains))
+    discriminator = nn.DataParallel(Discriminator(args.img_size, args.num_domains))
+    generator_ema = copy.deepcopy(generator)
+    # mapping_network_ema = copy.deepcopy(mapping_network)
+    style_encoder_ema = copy.deepcopy(style_encoder)
+
+    nets = Munch(generator=generator,
+                 # mapping_network=mapping_network,
+                 style_encoder=style_encoder,
+                 discriminator=discriminator)
+    nets_ema = Munch(generator=generator_ema,
+                     # mapping_network=mapping_network_ema,
+                     style_encoder=style_encoder_ema)
+
+    if args.w_hpf > 0:
+        fan = nn.DataParallel(FAN(fname_pretrained=args.wing_path).eval())
+        fan.get_heatmap = fan.module.get_heatmap
+        nets.fan = fan
+        nets_ema.fan = fan
+
+    return nets, nets_ema
+
+
+
 def build_model_MorphGAN(args):
     generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf))
-    # mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, 1))
+    # mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, 1, args.hidden_dim))
     mapping_network = None
     style_encoder = nn.DataParallel(MorphGANStyleEncoder(args.img_size, args.style_dim, 1))
     discriminator_global = nn.DataParallel(GlobalMorphGANDiscriminator(args.img_size, 1, style_dim=args.style_dim))

@@ -146,6 +146,61 @@ class MultiFolderImageDataset(data.Dataset):
         return sample, sample2, target
 
 
+class MultiFolderCorrespondenceImageDataset(data.Dataset):
+
+    def __init__(self, root, subfolders, transform=None, recursive=True, reference=False):
+        super().__init__()
+        self.transform = transform
+        self.samples = {}
+        self.labels = {}
+        self.targets = []
+        from torchvision.datasets import folder as df
+
+        for i, folder in enumerate(subfolders):
+            self.labels[folder] = i
+            samples_in_folder = []
+            for ext in df.IMG_EXTENSIONS:
+                if recursive:
+                    # samples_in_folder += sorted(list(Path(root).rglob(f"**/{folder}/**/*" + ext)))
+                    samples_in_folder += sorted(list(glob.glob(str(Path(root) / (f"**/{folder}/**/*" + ext)), recursive=True)))
+                else:
+                    # samples_in_folder += sorted(list(Path(root).glob(f"{folder}/*" + ext)))
+                    samples_in_folder += sorted(list(glob.glob(str(Path(root) / (f"{folder}/*" + ext)), recursive=False)))
+            self.samples[folder] = samples_in_folder
+
+        N = len(self.samples[folder])
+
+        filenames = [Path(p).stem for p in samples_in_folder]
+        for domain in self.samples.keys():
+            if len(self.samples[domain]) != N:
+                raise RuntimeError("All domains need to be in perfect correspondence")
+            filenames2 = [Path(p).stem for p in self.samples[domain]]
+            if filenames != filenames2:
+                raise RuntimeError("All domains need to be in perfect correspondence")
+
+        self.loader = df.default_loader
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (sample, target) where target is class_index of the target class.
+        """
+        sample = []
+        label = []
+        for domain in self.samples.keys():
+            im = self.loader(self.samples[domain][index])
+            if self.transform is not None:
+                im = self.transform(im)
+            sample += [im]
+            label += [self.labels[domain]]
+        return sample, label
+
 def get_train_loader(root, which='source', img_size=256,
                      batch_size=8, prob=0.5, num_workers=4,
                      domain_names=None):
@@ -175,10 +230,14 @@ def get_train_loader(root, which='source', img_size=256,
             dataset = ReferenceDataset(root, transform)
         else:
             dataset = MultiFolderImageDataset(root, domain_names, transform, recursive=True, reference=True)
+    elif which == 'correspondence':
+        dataset = MultiFolderCorrespondenceImageDataset(root, domain_names, transform, recursive=True)
     else:
         raise NotImplementedError
-
-    sampler = _make_balanced_sampler(dataset.targets)
+    if which == 'correspondence': # or not hasattr(dataset, 'targets'):
+        sampler = None
+    else:
+        sampler = _make_balanced_sampler(dataset.targets)
     return data.DataLoader(dataset=dataset,
                            batch_size=batch_size,
                            sampler=sampler,
@@ -265,12 +324,18 @@ class InputFetcher:
     def __next__(self):
         x, y = self._fetch_inputs()
         if self.mode == 'train':
-            x_ref, x_ref2, y_ref = self._fetch_refs()
-            z_trg = torch.randn(x.size(0), self.latent_dim)
-            z_trg2 = torch.randn(x.size(0), self.latent_dim)
-            inputs = Munch(x_src=x, y_src=y, y_ref=y_ref,
-                           x_ref=x_ref, x_ref2=x_ref2,
-                           z_trg=z_trg, z_trg2=z_trg2)
+            inputs = Munch(x_src=x, y_src=y)
+            if self.loader_ref is not None:
+                x_ref, x_ref2, y_ref = self._fetch_refs()
+                inputs.x_ref = x_ref
+                inputs.x_ref2 = x_ref2
+                inputs.y_ref2 = y_ref
+            if self.latent_dim > 0:
+                z_trg = torch.randn(x.size(0), self.latent_dim)
+                z_trg2 = torch.randn(x.size(0), self.latent_dim)
+                inputs.z_trg = z_trg
+                inputs.z_trg2 = z_trg2
+
         elif self.mode == 'val':
             x_ref, y_ref = self._fetch_inputs()
             inputs = Munch(x_src=x, y_src=y,
@@ -280,5 +345,16 @@ class InputFetcher:
         else:
             raise NotImplementedError
 
-        return Munch({k: v.to(self.device)
+        return Munch({k: to(v, self.device)
                       for k, v in inputs.items()})
+
+
+def to(what, device):
+    if isinstance(what, list):
+        for i in range(len(what)):
+            what[i] = to(what[i], device)
+    elif isinstance(what, torch.Tensor):
+        what = what.to(device)
+    else:
+        raise ValueError(f"Unsupported type: {type(what)}'")
+    return what

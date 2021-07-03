@@ -17,7 +17,7 @@ import torch
 
 from core.data_loader import get_train_loader
 from core.data_loader import get_test_loader
-from core.solver import Solver
+from core.solver_dualstar import SolverDualStar
 
 
 def str2bool(v):
@@ -34,7 +34,7 @@ def main(args):
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
 
-    solver = Solver(args)
+    solver = SolverDualStar(args)
 
     if args.mode == 'train':
         if not hasattr(args, 'domain_names') or len(args.domain_names) == 0:
@@ -44,19 +44,13 @@ def main(args):
             assert len(args.domain_names) == args.num_domains
 
         loaders = Munch(src=get_train_loader(root= args.train_img_dir,
-                                             which='source',
+                                             which='correspondence',
                                              domain_names=args.domain_names,
                                              img_size=args.img_size,
                                              batch_size=args.batch_size,
                                              prob=args.randcrop_prob,
                                              num_workers=args.num_workers),
-                        ref=get_train_loader(root= args.train_img_dir,
-                                             which='reference',
-                                             domain_names=args.domain_names,
-                                             img_size=args.img_size,
-                                             batch_size=args.batch_size,
-                                             prob=args.randcrop_prob,
-                                             num_workers=args.num_workers),
+                        ref=None,
                         val=get_test_loader(root= args.val_img_dir,
                                             domain_names=args.domain_names,
                                             img_size=args.img_size,
@@ -97,18 +91,28 @@ if __name__ == '__main__':
                         help='Number of domains')
     parser.add_argument('--domain_names', nargs="*", default=[],
                         help='Specify domain subfolder by name instead')
-    parser.add_argument('--latent_dim', type=int, default=16,
+    parser.add_argument('--latent_dim', type=int, default=0,
                         help='Latent vector dimension')
-    parser.add_argument('--hidden_dim', type=int, default=512,
+    parser.add_argument('--hidden_dim', type=int, default=0,
                         help='Hidden dimension of mapping network')
     parser.add_argument('--style_dim', type=int, default=64,
                         help='Style code dimension')
+    parser.add_argument('--direction', type=str, default='bi',
+                        help='Translation from one domain to another or bidirectional. Accepted values: "bi", "x2y","y2x" ')
 
     # weight for objective functions
     parser.add_argument('--lambda_reg', type=float, default=1,
                         help='Weight for R1 regularization')
-    parser.add_argument('--lambda_cyc', type=float, default=1,
+    # parser.add_argument('--lambda_cyc', type=float, default=1,
+    #                     help='Weight for cyclic consistency loss')
+    parser.add_argument('--lambda_cyc_real_style', type=float, default=0.5,
                         help='Weight for cyclic consistency loss')
+    parser.add_argument('--lambda_cyc_fake_style', type=float, default=0.5,
+                        help='Weight for cyclic consistency loss')
+    # parser.add_argument('--vgg_loss_layers', type=list, default=[4, 9],
+    #                     help='VGG layers to use for perceptual loss.')
+    # parser.add_argument('--lambda_vgg', type=list, default=[0.5, 1],
+    #                     help='Weights for previously specified VGG layers')
     parser.add_argument('--lambda_sty', type=float, default=1,
                         help='Weight for style reconstruction loss')
     parser.add_argument('--lambda_ds', type=float, default=1,
@@ -190,11 +194,12 @@ if __name__ == '__main__':
     parser.add_argument('--print_every', type=int, default=10)
     parser.add_argument('--log_every', type=int, default=10)
     parser.add_argument('--sample_every', type=int, default=5000)
-    # parser.add_argument('--save_every', type=int, default=10000)
-    # parser.add_argument('--eval_every', type=int, default=50000)
-    # parser.add_argument('--sample_every', type=int, default=20)
     parser.add_argument('--save_every', type=int, default=10000)
     parser.add_argument('--eval_every', type=int, default=25000)
+    # parser.add_argument('--eval_every', type=int, default=50000)
+    # parser.add_argument('--sample_every', type=int, default=20)
+    # parser.add_argument('--save_every', type=int, default=60)
+    # parser.add_argument('--eval_every', type=int, default=10)
 
     parser.add_argument('--config_file', type=str)
     args = parser.parse_args()
