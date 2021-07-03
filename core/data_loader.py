@@ -330,7 +330,7 @@ class InputFetcher:
                 x_ref, x_ref2, y_ref = self._fetch_refs()
                 inputs['x_ref'] = x_ref
                 inputs['x_ref2'] = x_ref2
-                inputs['y_ref2'] = y_ref
+                inputs['y_ref'] = y_ref
             if self.latent_dim > 0:
                 z_trg = torch.randn(x.size(0), self.latent_dim)
                 z_trg2 = torch.randn(x.size(0), self.latent_dim)
