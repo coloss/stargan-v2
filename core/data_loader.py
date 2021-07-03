@@ -177,11 +177,11 @@ class MultiFolderCorrespondenceImageDataset(data.Dataset):
             filenames2 = [Path(p).stem for p in self.samples[domain]]
             if filenames != filenames2:
                 raise RuntimeError("All domains need to be in perfect correspondence")
-
+        self.N = N
         self.loader = df.default_loader
 
     def __len__(self):
-        return len(self.samples)
+        return self.N
 
     def __getitem__(self, index):
         """
