@@ -234,6 +234,7 @@ def get_train_loader(root, which='source', img_size=256,
         dataset = MultiFolderCorrespondenceImageDataset(root, domain_names, transform, recursive=True)
     else:
         raise NotImplementedError
+    print(f"Dataset has {len(dataset)} samples")
     if which == 'correspondence': # or not hasattr(dataset, 'targets'):
         sampler = None
     else:
