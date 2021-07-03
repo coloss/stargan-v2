@@ -23,6 +23,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 import torchvision.utils as vutils
+from pathlib import Path
 
 
 def save_json(json_file, filename):
@@ -120,6 +121,8 @@ def translate_using_reference(nets, args, x_src, x_ref, y_ref, filename):
 
 @torch.no_grad()
 def debug_image(nets, args, inputs, step):
+    image_path_list = {}
+
     x_src, y_src = inputs.x_src, inputs.y_src
     x_ref, y_ref = inputs.x_ref, inputs.y_ref
 
@@ -129,6 +132,7 @@ def debug_image(nets, args, inputs, step):
     # translate and reconstruct (reference-guided)
     filename = ospj(args.sample_dir, '%06d_cycle_consistency.jpg' % (step))
     translate_and_reconstruct(nets, args, x_src, y_src, x_ref, y_ref, filename)
+    image_path_list[Path(filename).stem[7:]] = filename
 
     # latent-guided image synthesis
     y_trg_list = [torch.tensor(y).repeat(N).to(device)
@@ -137,10 +141,13 @@ def debug_image(nets, args, inputs, step):
     for psi in [0.5, 0.7, 1.0]:
         filename = ospj(args.sample_dir, '%06d_latent_psi_%.1f.jpg' % (step, psi))
         translate_using_latent(nets, args, x_src, y_trg_list, z_trg_list, psi, filename)
+        image_path_list[Path(filename).stem[7:]] = filename
 
     # reference-guided image synthesis
     filename = ospj(args.sample_dir, '%06d_reference.jpg' % (step))
     translate_using_reference(nets, args, x_src, x_ref, y_ref, filename)
+    image_path_list[Path(filename).stem[7:]] = filename
+    return image_path_list
 
 
 # ======================= #

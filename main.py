@@ -63,7 +63,7 @@ def main(args):
                                             batch_size=args.val_batch_size,
                                             shuffle=True,
                                             num_workers=args.num_workers))
-        solver.train(loaders)
+        solver.fit(loaders)
     elif args.mode == 'sample':
         assert len(subdirs(args.src_dir)) == args.num_domains
         assert len(subdirs(args.ref_dir)) == args.num_domains
@@ -150,20 +150,25 @@ if __name__ == '__main__':
                         help='Number of workers used in DataLoader')
     parser.add_argument('--seed', type=int, default=777,
                         help='Seed for random number generator')
+    parser.add_argument('--logger', type=str, default='wandb',
+                        help='Seed for random number generator')
 
     # directory for training
     parser.add_argument('--train_img_dir', type=str, default='data/celeba_hq/train',
                         help='Directory containing training images')
     parser.add_argument('--val_img_dir', type=str, default='data/celeba_hq/val',
                         help='Directory containing validation images')
-    parser.add_argument('--sample_dir', type=str, default='expr/samples',
-                        help='Directory for saving generated images')
-    parser.add_argument('--checkpoint_dir', type=str, default='expr/checkpoints',
-                        help='Directory for saving network checkpoints')
-
+    parser.add_argument('--run_dir', type=str, default='todo',
+                        help='Directory for the experiment checkpoint and results')
+    parser.add_argument('--expr_dir', type=str, default='experiments',
+                        help='Directory for the experiment checkpoint and results')
+    # parser.add_argument('--sample_dir', type=str, default='expr/samples',
+    #                     help='Directory for saving generated images')
+    # parser.add_argument('--checkpoint_dir', type=str, default='expr/checkpoints',
+    #                     help='Directory for saving network checkpoints')
     # directory for calculating metrics
-    parser.add_argument('--eval_dir', type=str, default='expr/eval',
-                        help='Directory for saving metrics, i.e., FID and LPIPS')
+    # parser.add_argument('--eval_dir', type=str, default='expr/eval',
+    #                     help='Directory for saving metrics, i.e., FID and LPIPS')
 
     # directory for testing
     parser.add_argument('--result_dir', type=str, default='expr/results',
@@ -183,9 +188,13 @@ if __name__ == '__main__':
 
     # step size
     parser.add_argument('--print_every', type=int, default=10)
-    parser.add_argument('--sample_every', type=int, default=5000)
+    parser.add_argument('--log_every', type=int, default=10)
+    # parser.add_argument('--sample_every', type=int, default=5000)
+    # parser.add_argument('--save_every', type=int, default=10000)
+    # parser.add_argument('--eval_every', type=int, default=50000)
+    parser.add_argument('--sample_every', type=int, default=20)
     parser.add_argument('--save_every', type=int, default=10000)
-    parser.add_argument('--eval_every', type=int, default=50000)
+    parser.add_argument('--eval_every', type=int, default=1)
 
     args = parser.parse_args()
     main(args)

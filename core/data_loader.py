@@ -31,8 +31,11 @@ def listdir(dname):
 
 
 class DefaultDataset(data.Dataset):
-    def __init__(self, root, transform=None):
-        self.samples = listdir(root)
+    def __init__(self, root, transform=None, recursive=False):
+        if not recursive:
+            self.samples = listdir(root)
+        else:
+            self.samples = glob.glob(os.path.join(root, "**", "*.*"), recursive=recursive)
         self.samples.sort()
         self.transform = transform
         self.targets = None
@@ -186,7 +189,7 @@ def get_train_loader(root, which='source', img_size=256,
 
 def get_eval_loader(root, img_size=256, batch_size=32,
                     imagenet_normalize=True, shuffle=True,
-                    num_workers=4, drop_last=False):
+                    num_workers=4, drop_last=False, recursive=False):
     print('Preparing DataLoader for the evaluation phase...')
     if imagenet_normalize:
         height, width = 299, 299
@@ -204,7 +207,7 @@ def get_eval_loader(root, img_size=256, batch_size=32,
         transforms.Normalize(mean=mean, std=std)
     ])
 
-    dataset = DefaultDataset(root, transform=transform)
+    dataset = DefaultDataset(root, transform=transform, recursive=recursive)
     return data.DataLoader(dataset=dataset,
                            batch_size=batch_size,
                            shuffle=shuffle,

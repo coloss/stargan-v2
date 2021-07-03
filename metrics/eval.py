@@ -28,7 +28,12 @@ def calculate_metrics(nets, args, step, mode):
     assert mode in ['latent', 'reference']
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    domains = os.listdir(args.val_img_dir)
+    if hasattr(args, 'domain_names'):
+        domains = args.domain_names
+        recursive = True
+    else:
+        domains = os.listdir(args.val_img_dir)
+        recursive = False
     domains.sort()
     num_domains = len(domains)
     print('Number of domains: %d' % num_domains)
@@ -38,19 +43,21 @@ def calculate_metrics(nets, args, step, mode):
         src_domains = [x for x in domains if x != trg_domain]
 
         if mode == 'reference':
-            path_ref = os.path.join(args.val_img_dir, trg_domain)
+            path_ref = os.path.join(args.val_img_dir, "**", trg_domain)
             loader_ref = get_eval_loader(root=path_ref,
                                          img_size=args.img_size,
                                          batch_size=args.val_batch_size,
                                          imagenet_normalize=False,
-                                         drop_last=True)
+                                         drop_last=True,
+                                         recursive=recursive)
 
         for src_idx, src_domain in enumerate(src_domains):
-            path_src = os.path.join(args.val_img_dir, src_domain)
+            path_src = os.path.join(args.val_img_dir, "**", src_domain)
             loader_src = get_eval_loader(root=path_src,
                                          img_size=args.img_size,
                                          batch_size=args.val_batch_size,
-                                         imagenet_normalize=False)
+                                         imagenet_normalize=False,
+                                         recursive=recursive)
 
             task = '%s2%s' % (src_domain, trg_domain)
             path_fake = os.path.join(args.eval_dir, task)
@@ -116,10 +123,12 @@ def calculate_metrics(nets, args, step, mode):
     utils.save_json(lpips_dict, filename)
 
     # calculate and report fid values
-    calculate_fid_for_all_tasks(args, domains, step=step, mode=mode)
+    fid_values = calculate_fid_for_all_tasks(args, domains, step=step, mode=mode, recursive=recursive)
+
+    return {**fid_values, **lpips_dict}
 
 
-def calculate_fid_for_all_tasks(args, domains, step, mode):
+def calculate_fid_for_all_tasks(args, domains, step, mode, recursive=False):
     print('Calculating FID for all tasks...')
     fid_values = OrderedDict()
     for trg_domain in domains:
@@ -127,13 +136,18 @@ def calculate_fid_for_all_tasks(args, domains, step, mode):
 
         for src_domain in src_domains:
             task = '%s2%s' % (src_domain, trg_domain)
-            path_real = os.path.join(args.train_img_dir, trg_domain)
-            path_fake = os.path.join(args.eval_dir, task)
+            if not recursive:
+                path_real = os.path.join(args.train_img_dir, trg_domain)
+                path_fake = os.path.join(args.eval_dir, task)
+            else:
+                path_real = os.path.join(args.train_img_dir, "**", trg_domain)
+                path_fake = os.path.join(args.eval_dir, "**", task)
             print('Calculating FID for %s...' % task)
             fid_value = calculate_fid_given_paths(
                 paths=[path_real, path_fake],
                 img_size=args.img_size,
-                batch_size=args.val_batch_size)
+                batch_size=args.val_batch_size,
+                recursive=recursive)
             fid_values['FID_%s/%s' % (mode, task)] = fid_value
 
     # calculate the average FID for all tasks
@@ -145,3 +159,5 @@ def calculate_fid_for_all_tasks(args, domains, step, mode):
     # report FID values
     filename = os.path.join(args.eval_dir, 'FID_%.5i_%s.json' % (step, mode))
     utils.save_json(fid_values, filename)
+
+    return fid_values

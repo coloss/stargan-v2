@@ -35,17 +35,35 @@ class Solver(SolverBase):
     def _build_model(self):
         return build_model_stargan(self.args)
 
-    def _save_checkpoint(self, step):
-        for ckptio in self.ckptios:
-            ckptio.save(step)
+    def _create_experiment_name(self):
+        name = "StarGAN"
+        name += "_" + "-".join(self.args.domain_names)
+        return name
 
-    def _load_checkpoint(self, step):
-        for ckptio in self.ckptios:
-            ckptio.load(step)
+    def _configure_optimizers(self):
+        optimizers = Munch()
+        for net in self.nets.keys():
+            if net == 'fan':
+                continue
+            optimizers[net] = torch.optim.Adam(
+                params=self.nets[net].parameters(),
+                lr=self.args.f_lr if net == 'mapping_network' else self.args.lr,
+                betas=[self.args.beta1, self.args.beta2],
+                weight_decay=self.args.weight_decay)
+        return optimizers
 
-    def _reset_grad(self):
-        for optim in self.optims.values():
-            optim.zero_grad()
+    def _evaluate(self, step):
+        metrics_latent = calculate_metrics(self.nets_ema, self.args, step + 1, mode='latent')
+        metrics_ref = calculate_metrics(self.nets_ema, self.args, step + 1, mode='reference')
+        return {**metrics_latent, **metrics_ref}
+        # metrics = {}
+        # for key in metrics_latent:
+        #     metrics[key + "_latent"] = metrics_latent[key]
+        # for key in metrics_ref:
+        #     metrics[key + "_ref"] = metrics_ref[key]
+
+    def _generate_images(self, inputs, step):
+        return utils.debug_image(self.nets_ema, self.args, inputs=inputs, step=step)
 
     def _training_step(self, inputs, step):
         x_real, y_org = inputs.x_src, inputs.y_src
@@ -127,7 +145,6 @@ class Solver(SolverBase):
                 losses[prefix + key] = value
 
         return losses
-
 
 
     @torch.no_grad()
