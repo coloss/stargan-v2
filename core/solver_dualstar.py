@@ -207,7 +207,7 @@ def compute_d_loss(nets, args, x_real, y_real, x_labels, y_labels, masks=None):
     out = nets.discriminator(fake_image_batch, full_label_batch_fake)
     loss_fake = adv_loss(out, 0)
 
-    loss = loss_real + loss_fake + args.lambda_reg * loss_reg
+    loss = args.lambda_d_real* loss_real + args.lambda_d_fake * loss_fake + args.lambda_reg * loss_reg
     return loss, Munch(real=loss_real.item(),
                        fake=loss_fake.item(),
                        reg=loss_reg.item())

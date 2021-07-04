@@ -113,6 +113,10 @@ if __name__ == '__main__':
                         help='Weight for style reconstruction loss')
     parser.add_argument('--lambda_ds', type=float, default=1,
                         help='Weight for diversity sensitive loss')
+    parser.add_argument('--lambda_d_real', type=float, default=1.0,
+                    help='Weight for discriminator real loss')
+    parser.add_argument('--lambda_d_fake', type=float, default=1.0,
+                    help='Weight for discriminator fake loss')
     parser.add_argument('--ds_iter', type=int, default=100000,
                         help='Number of iterations to optimize diversity sensitive loss')
     parser.add_argument('--w_hpf', type=float, default=1,
