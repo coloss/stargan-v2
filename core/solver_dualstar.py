@@ -179,16 +179,16 @@ class SolverDualStar(SolverBase):
 
 
 def compute_d_loss(nets, args, x_real, y_real, x_labels, y_labels, masks=None):
-    # with real images
-    x_real.requires_grad_()
 
     full_image_batch_real = torch.cat([x_real, y_real], dim=0)
     full_label_batch_real = torch.cat([x_labels, y_labels], dim=0)
+    # with real images
+    full_image_batch_real.requires_grad_()
 
     out = nets.discriminator(full_image_batch_real, full_label_batch_real)
 
     loss_real = adv_loss(out, 1)
-    loss_reg = r1_reg(out, x_real)
+    loss_reg = r1_reg(out, full_image_batch_real)
 
     # with fake images
     with torch.no_grad():

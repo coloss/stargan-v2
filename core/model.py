@@ -410,7 +410,10 @@ class PatchMorphGANDiscriminator(nn.Module):
 
 def build_model_stargan(args):
     generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf))
-    mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, args.num_domains, args.hidden_dim))
+    if args.latent_dim > 0:
+        mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, args.num_domains, args.hidden_dim))
+    else:
+        mapping_network = None
     style_encoder = nn.DataParallel(StyleEncoder(args.img_size, args.style_dim, args.num_domains))
     discriminator = nn.DataParallel(Discriminator(args.img_size, args.num_domains))
     generator_ema = copy.deepcopy(generator)
@@ -418,12 +421,15 @@ def build_model_stargan(args):
     style_encoder_ema = copy.deepcopy(style_encoder)
 
     nets = Munch(generator=generator,
-                 mapping_network=mapping_network,
+                 # mapping_network=mapping_network,
                  style_encoder=style_encoder,
                  discriminator=discriminator)
     nets_ema = Munch(generator=generator_ema,
-                     mapping_network=mapping_network_ema,
+                     # mapping_network=mapping_network_ema,
                      style_encoder=style_encoder_ema)
+    if mapping_network is not None:
+        nets['mapping_network'] = mapping_network
+        nets_ema['mapping_network'] = mapping_network_ema
 
     if args.w_hpf > 0:
         fan = nn.DataParallel(FAN(fname_pretrained=args.wing_path).eval())

@@ -37,6 +37,8 @@ class Solver(SolverBase):
 
     def _create_experiment_name(self):
         name = "StarGAN"
+        if self.args.latent_dim == 0:
+            name += "_noZ"
         name += "_" + "-".join(self.args.domain_names)
         return name
 
@@ -53,8 +55,10 @@ class Solver(SolverBase):
         return optimizers
 
     def _evaluate(self, step):
-        metrics_latent = calculate_metrics(self.nets_ema, self.args, step + 1, mode='latent')
         metrics_ref = calculate_metrics(self.nets_ema, self.args, step + 1, mode='reference')
+        if self.args.latent_dim > 0:
+            return metrics_ref
+        metrics_latent = calculate_metrics(self.nets_ema, self.args, step + 1, mode='latent')
         return {**metrics_latent, **metrics_ref}
         # metrics = {}
         # for key in metrics_latent:
@@ -68,7 +72,9 @@ class Solver(SolverBase):
     def _training_step(self, inputs, step):
         x_real, y_org = inputs.x_src, inputs.y_src
         x_ref, x_ref2, y_trg = inputs.x_ref, inputs.x_ref2, inputs.y_ref
-        z_trg, z_trg2 = inputs.z_trg, inputs.z_trg2
+
+        if self.args.latent_dim > 0:
+            z_trg, z_trg2 = inputs.z_trg, inputs.z_trg2
 
         args = self.args
         nets = self.nets
@@ -98,11 +104,13 @@ class Solver(SolverBase):
         # plt.show()
 
         # train the discriminator
-        d_loss, d_losses_latent = compute_d_loss(
-            nets, args, x_real, y_org, y_trg, z_trg=z_trg, masks=masks)
-        self._reset_grad()
-        d_loss.backward()
-        optims.discriminator.step()
+
+        if self.args.latent_dim > 0:
+            d_loss, d_losses_latent = compute_d_loss(
+                nets, args, x_real, y_org, y_trg, z_trg=z_trg, masks=masks)
+            self._reset_grad()
+            d_loss.backward()
+            optims.discriminator.step()
 
         d_loss, d_losses_ref = compute_d_loss(
             nets, args, x_real, y_org, y_trg, x_ref=x_ref, masks=masks)
@@ -111,23 +119,27 @@ class Solver(SolverBase):
         optims.discriminator.step()
 
         # train the generator
-        g_loss, g_losses_latent = compute_g_loss(
-            nets, args, x_real, y_org, y_trg, z_trgs=[z_trg, z_trg2], masks=masks)
-        self._reset_grad()
-        g_loss.backward()
-        optims.generator.step()
-        optims.mapping_network.step()
-        optims.style_encoder.step()
+        if self.args.latent_dim > 0:
+            g_loss, g_losses_latent = compute_g_loss(
+                nets, args, x_real, y_org, y_trg, z_trgs=[z_trg, z_trg2], masks=masks)
+            self._reset_grad()
+            g_loss.backward()
+            optims.generator.step()
+            optims.mapping_network.step()
+            optims.style_encoder.step()
 
         g_loss, g_losses_ref = compute_g_loss(
             nets, args, x_real, y_org, y_trg, x_refs=[x_ref, x_ref2], masks=masks)
         self._reset_grad()
         g_loss.backward()
         optims.generator.step()
+        if self.args.latent_dim == 0:
+            optims.style_encoder.step() # when no mapping network, update style encoder here (otherwise it would be nowhere)
 
         # compute moving average of network parameters
         moving_average(nets.generator, nets_ema.generator, beta=0.999)
-        moving_average(nets.mapping_network, nets_ema.mapping_network, beta=0.999)
+        if self.args.latent_dim > 0:
+            moving_average(nets.mapping_network, nets_ema.mapping_network, beta=0.999)
         moving_average(nets.style_encoder, nets_ema.style_encoder, beta=0.999)
 
         # decay weight for diversity sensitive loss
@@ -135,8 +147,12 @@ class Solver(SolverBase):
             args.lambda_ds -= (self.initial_lambda_ds / args.ds_iter)
 
         losses = {}
-        dicts = [d_losses_latent, d_losses_ref, g_losses_latent, g_losses_ref]
-        prefixes = ['D/latent_', 'D/ref_', 'G/latent_', 'G/ref_']
+        if self.args.latent_dim > 0:
+            dicts = [d_losses_latent, d_losses_ref, g_losses_latent, g_losses_ref]
+            prefixes = ['D/latent_', 'D/ref_', 'G/latent_', 'G/ref_']
+        else:
+            dicts = [d_losses_ref, g_losses_ref]
+            prefixes = ['D/ref_', 'G/ref_']
 
         for li in range(len(prefixes)):
             d = dicts[li]
