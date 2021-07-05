@@ -69,7 +69,7 @@ class SolverBase(nn.Module):
             with open(cfg_path, 'w') as outfile:
                 OmegaConf.save(config=vars(self.args), f=outfile)
         else:
-            with open(cfg_path, 'w') as infile:
+            with open(cfg_path, 'r') as infile:
                 cfg_old = OmegaConf.to_container(OmegaConf.load(infile))
             cfg_current = vars(self.args)
             if cfg_old != cfg_current:
