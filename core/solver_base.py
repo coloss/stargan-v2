@@ -187,7 +187,8 @@ class SolverBase(nn.Module):
             if (i + 1) % args.log_every == 0:
                 for key in self.aggregated_losses.keys():
                     self.aggregated_losses[key] /= args.log_every
-                self.logger.log_metrics(self.aggregated_losses, i+1)
+                if self.logger is not None:
+                    self.logger.log_metrics(self.aggregated_losses, i+1)
                 for key in self.aggregated_losses.keys():
                     self.aggregated_losses[key] = 0
 

@@ -49,7 +49,8 @@ def calculate_metrics(nets, args, step, mode):
                                          batch_size=args.val_batch_size,
                                          imagenet_normalize=False,
                                          drop_last=True,
-                                         recursive=recursive)
+                                         recursive=recursive,
+                                         domain_names=args.domain_names)
 
         for src_idx, src_domain in enumerate(src_domains):
             path_src = os.path.join(args.val_img_dir, "**", src_domain)
@@ -57,7 +58,8 @@ def calculate_metrics(nets, args, step, mode):
                                          img_size=args.img_size,
                                          batch_size=args.val_batch_size,
                                          imagenet_normalize=False,
-                                         recursive=recursive)
+                                         recursive=recursive,
+                                         domain_names=args.domain_names)
 
             task = '%s2%s' % (src_domain, trg_domain)
             path_fake = os.path.join(args.eval_dir, task)

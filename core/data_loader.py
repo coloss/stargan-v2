@@ -23,6 +23,9 @@ from torch.utils.data.sampler import WeightedRandomSampler
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 import glob
+import albumentations as A
+import albumentations.pytorch as Ap
+
 
 def listdir(dname):
     fnames = list(chain(*[list(Path(dname).rglob('*.' + ext))
@@ -42,9 +45,9 @@ class DefaultDataset(data.Dataset):
 
     def __getitem__(self, index):
         fname = self.samples[index]
-        img = Image.open(fname).convert('RGB')
+        img = np.array(Image.open(fname).convert('RGB'))
         if self.transform is not None:
-            img = self.transform(img)
+            img = self.transform(image=img)["image"]
         return img
 
     def __len__(self):
@@ -70,11 +73,11 @@ class ReferenceDataset(data.Dataset):
     def __getitem__(self, index):
         fname, fname2 = self.samples[index]
         label = self.targets[index]
-        img = Image.open(fname).convert('RGB')
-        img2 = Image.open(fname2).convert('RGB')
+        img = np.array(Image.open(fname).convert('RGB'))
+        img2 = np.array(Image.open(fname2).convert('RGB'))
         if self.transform is not None:
-            img = self.transform(img)
-            img2 = self.transform(img2)
+            img = self.transform(image=img)['image']
+            img2 = self.transform(image=img2)['image']
         return img, img2, label
 
     def __len__(self):
@@ -132,18 +135,37 @@ class MultiFolderImageDataset(data.Dataset):
         """
         path = self.samples[index]
         target = self.targets[index]
-        sample = self.loader(path)
+        sample = np.array(self.loader(path))
         if self.transform is not None:
-            sample = self.transform(sample)
+            sample = self.transform(image=sample)['image']
 
         if not self.reference:
             return sample, target
 
         path2 = self.samples[index]
-        sample2 = self.loader(path2)
+        sample2 = np.array(self.loader(path2))
         if self.transform is not None:
-            sample2 = self.transform(sample2)
+            sample2 = self.transform(image=sample2)['image']
         return sample, sample2, target
+
+class ImageFolder2(ImageFolder):
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (sample, target) where target is class_index of the target class.
+        """
+        path, target = self.samples[index]
+        sample = self.loader(path)
+        if self.transform is not None:
+            sample = self.transform(image=sample)['image']
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return sample, target
 
 
 class MultiFolderCorrespondenceImageDataset(data.Dataset):
@@ -191,15 +213,22 @@ class MultiFolderCorrespondenceImageDataset(data.Dataset):
         Returns:
             tuple: (sample, target) where target is class_index of the target class.
         """
-        sample = []
+        sample_d = {}
         label = []
         for domain in self.samples.keys():
-            im = self.loader(self.samples[domain][index])
-            if self.transform is not None:
-                im = self.transform(im)
-            sample += [im]
+            im = np.array(self.loader(self.samples[domain][index]))
+            # if self.transform is not None:
+            #     im = self.transform(im)
+            sample_d[domain] = im
             label += [self.labels[domain]]
+        if self.transform is not None:
+            sample_d = self.transform(image=im, **sample_d)
+        sample = []
+        for domain in self.samples.keys():
+            sample += [sample_d[domain]]
+
         return sample, label
+
 
 def get_train_loader(root, which='source', img_size=256,
                      batch_size=8, prob=0.5, num_workers=4,
@@ -207,22 +236,39 @@ def get_train_loader(root, which='source', img_size=256,
     print('Preparing DataLoader to fetch %s images '
           'during the training phase...' % which)
 
-    crop = transforms.RandomResizedCrop(
-        img_size, scale=[0.8, 1.0], ratio=[0.9, 1.1])
-    rand_crop = transforms.Lambda(
-        lambda x: crop(x) if random.random() < prob else x)
+    # crop = transforms.RandomResizedCrop(
+    #     img_size, scale=[0.8, 1.0], ratio=[0.9, 1.1])
+    # rand_crop = transforms.Lambda(
+    #     lambda x: crop(x) if random.random() < prob else x)
+    #
+    # transform = transforms.Compose([
+    #     rand_crop,
+    #     transforms.Resize([img_size, img_size]),
+    #     transforms.RandomHorizontalFlip(),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize(mean=[0.5, 0.5, 0.5],
+    #                          std=[0.5, 0.5, 0.5]),
+    # ])
 
-    transform = transforms.Compose([
+    rand_crop = A.RandomResizedCrop(
+        img_size, img_size, scale=(0.8, 1.0), ratio=(0.9, 1.1), p=prob)
+
+    additional_targets = {name : "image" for name in domain_names} if domain_names is not None else {}
+
+    transform = A.Compose([
         rand_crop,
-        transforms.Resize([img_size, img_size]),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5],
+        A.Resize(img_size, img_size),
+        A.HorizontalFlip(p=0.5),
+        A.Normalize(mean=[0.5, 0.5, 0.5],
                              std=[0.5, 0.5, 0.5]),
-    ])
+        A.pytorch.transforms.ToTensorV2(),
+    ],
+        additional_targets=additional_targets
+    )
+
     if which == 'source':
         if domain_names is None or len(domain_names) == 0:
-            dataset = ImageFolder(root, transform)
+            dataset = ImageFolder2(root, transform)
         else:
             dataset = MultiFolderImageDataset(root, domain_names, transform, recursive=True)
     elif which == 'reference':
@@ -249,7 +295,7 @@ def get_train_loader(root, which='source', img_size=256,
 
 def get_eval_loader(root, img_size=256, batch_size=32,
                     imagenet_normalize=True, shuffle=True,
-                    num_workers=4, drop_last=False, recursive=False):
+                    num_workers=4, drop_last=False, recursive=False, domain_names=None):
     print('Preparing DataLoader for the evaluation phase...')
     if imagenet_normalize:
         height, width = 299, 299
@@ -260,12 +306,21 @@ def get_eval_loader(root, img_size=256, batch_size=32,
         mean = [0.5, 0.5, 0.5]
         std = [0.5, 0.5, 0.5]
 
-    transform = transforms.Compose([
-        transforms.Resize([img_size, img_size]),
-        transforms.Resize([height, width]),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean, std=std)
-    ])
+    # transform = transforms.Compose([
+    #     transforms.Resize([img_size, img_size]),
+    #     transforms.Resize([height, width]),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize(mean=mean, std=std)
+    # ])
+
+    additional_targets = {name : "image" for name in domain_names} if domain_names is not None else {}
+    transform = A.Compose([
+        A.Resize(img_size, img_size),
+        A.Resize(height, width),
+        A.Normalize(mean=mean, std=std),
+        A.pytorch.transforms.ToTensorV2(),
+    ],
+        additional_targets=additional_targets)
 
     dataset = DefaultDataset(root, transform=transform, recursive=recursive)
     return data.DataLoader(dataset=dataset,
@@ -278,19 +333,29 @@ def get_eval_loader(root, img_size=256, batch_size=32,
 
 def get_test_loader(root, img_size=256, batch_size=32,
                     shuffle=True, num_workers=4,
-                    domain_names=None):
+                    domain_names=None, which=None):
     print('Preparing DataLoader for the generation phase...')
-    transform = transforms.Compose([
-        transforms.Resize([img_size, img_size]),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                             std=[0.5, 0.5, 0.5]),
-    ])
+    # transform = transforms.Compose([
+    #     transforms.Resize([img_size, img_size]),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize(mean=[0.5, 0.5, 0.5],
+    #                          std=[0.5, 0.5, 0.5]),
+    # ])
+    additional_targets = {name : "image" for name in domain_names} if domain_names is not None else {}
+    transform = A.Compose([
+        A.Resize(img_size, img_size),
+        A.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        A.pytorch.transforms.ToTensorV2(),
+    ],
+        additional_targets=additional_targets)
 
-    if domain_names is None or len(domain_names) == 0:
-        dataset = ImageFolder(root, transform)
+    if which == 'correspondence':
+        dataset = MultiFolderCorrespondenceImageDataset(root, domain_names, transform, recursive=True)
     else:
-        dataset = MultiFolderImageDataset(root, domain_names, transform, recursive=True)
+        if domain_names is None or len(domain_names) == 0:
+            dataset = ImageFolder2(root, transform)
+        else:
+            dataset = MultiFolderImageDataset(root, domain_names, transform, recursive=True)
     return data.DataLoader(dataset=dataset,
                            batch_size=batch_size,
                            shuffle=shuffle,

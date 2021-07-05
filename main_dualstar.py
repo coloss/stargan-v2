@@ -52,6 +52,7 @@ def main(args):
                                              num_workers=args.num_workers),
                         ref=None,
                         val=get_test_loader(root= args.val_img_dir,
+                                            which='correspondence',
                                             domain_names=args.domain_names,
                                             img_size=args.img_size,
                                             batch_size=args.val_batch_size,
