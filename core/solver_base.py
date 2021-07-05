@@ -72,9 +72,9 @@ class SolverBase(nn.Module):
             with open(cfg_path, 'r') as infile:
                 cfg_old = OmegaConf.to_container(OmegaConf.load(infile))
             cfg_current = vars(self.args)
-            if cfg_old != cfg_current:
-                print("The old and current configs do not match!")
-                sys.exit()
+            # if cfg_old != cfg_current:
+            #     print("The old and current configs do not match!")
+            #     sys.exit()
 
         if str(args.logger).lower() == 'wandb':
             short_name = experiment_name[:min(128, len(experiment_name))]
