@@ -56,7 +56,7 @@ class Solver(SolverBase):
 
     def _evaluate(self, step):
         metrics_ref = calculate_metrics(self.nets_ema, self.args, step + 1, mode='reference')
-        if self.args.latent_dim > 0:
+        if self.args.latent_dim == 0:
             return metrics_ref
         metrics_latent = calculate_metrics(self.nets_ema, self.args, step + 1, mode='latent')
         return {**metrics_latent, **metrics_ref}

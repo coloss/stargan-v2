@@ -51,7 +51,7 @@ def main(args):
                                              prob=args.randcrop_prob,
                                              num_workers=args.num_workers),
                         ref=None,
-                        val=get_test_loader(root= args.val_img_dir,
+                        val=get_test_loader(root=args.val_img_dir,
                                             which='correspondence',
                                             domain_names=args.domain_names,
                                             img_size=args.img_size,
@@ -198,11 +198,11 @@ if __name__ == '__main__':
     # step size
     parser.add_argument('--print_every', type=int, default=10)
     parser.add_argument('--log_every', type=int, default=10)
-    parser.add_argument('--sample_every', type=int, default=5000)
+    # parser.add_argument('--sample_every', type=int, default=5000)
     parser.add_argument('--save_every', type=int, default=10000)
     parser.add_argument('--eval_every', type=int, default=25000)
     # parser.add_argument('--eval_every', type=int, default=50000)
-    # parser.add_argument('--sample_every', type=int, default=20)
+    parser.add_argument('--sample_every', type=int, default=20)
     # parser.add_argument('--save_every', type=int, default=60)
     # parser.add_argument('--eval_every', type=int, default=10)
 

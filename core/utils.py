@@ -151,6 +151,51 @@ def debug_image(nets, args, inputs, step):
     return image_path_list
 
 
+@torch.no_grad()
+def debug_image_paired(nets, args, inputs, step):
+    image_path_list = {}
+
+    x_src, y_src = inputs.x_src
+    x_ref, y_ref = inputs.x_ref
+
+    x_src_label, y_src_label = inputs.y_src
+    x_ref_label, y_ref_label = inputs.y_ref
+
+    # x_all_src = torch.cat([x_src, x_ref, y_src, y_ref], dim=0)
+    # x_all_ref = torch.cat([y_src, y_ref, x_src, x_ref], dim=0)
+    # labels_all_src = torch.cat([x_src_label, x_ref_label, y_src_label, y_ref_label], dim=0)
+    # labels_all_ref = torch.cat([y_src_label, y_ref_label, x_src_label, x_ref_label], dim=0)
+
+    x_all_src = torch.cat([x_src, x_ref,], dim=0)
+    x_all_ref = torch.cat([y_src, y_ref, ], dim=0)
+    labels_all_src = torch.cat([x_src_label, x_ref_label,], dim=0)
+    labels_all_ref = torch.cat([y_src_label, y_ref_label,], dim=0)
+
+    device = x_all_src.device
+    N = x_all_src.size(0)
+
+    # translate and reconstruct (reference-guided)
+    filename = ospj(args.sample_dir, '%06d_cycle_consistency.jpg' % (step))
+    translate_and_reconstruct(nets, args, x_all_src, labels_all_src, x_all_ref, labels_all_ref, filename)
+    image_path_list[Path(filename).stem[7:]] = filename
+
+    # latent-guided image synthesis
+    if args.latent_dim > 0:
+        y_trg_list = [torch.tensor(y).repeat(N).to(device)
+                      for y in range(min(args.num_domains, 5))]
+        z_trg_list = torch.randn(args.num_outs_per_domain, 1, args.latent_dim).repeat(1, N, 1).to(device)
+        for psi in [0.5, 0.7, 1.0]:
+            filename = ospj(args.sample_dir, '%06d_latent_psi_%.1f.jpg' % (step, psi))
+            translate_using_latent(nets, args, x_all_src, y_trg_list, z_trg_list, psi, filename)
+            image_path_list[Path(filename).stem[7:]] = filename
+
+    # reference-guided image synthesis
+    filename = ospj(args.sample_dir, '%06d_reference.jpg' % (step))
+    translate_using_reference(nets, args, x_all_src, x_all_ref, labels_all_ref, filename)
+    image_path_list[Path(filename).stem[7:]] = filename
+    return image_path_list
+
+
 # ======================= #
 # Video-related functions #
 # ======================= #

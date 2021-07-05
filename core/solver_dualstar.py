@@ -63,7 +63,8 @@ class SolverDualStar(SolverBase):
         return {**metrics_ref}
 
     def _generate_images(self, inputs, step):
-        return utils.debug_image(self.nets_ema, self.args, inputs=inputs, step=step)
+        return utils.debug_image_paired(self.nets_ema, self.args, inputs=inputs, step=step)
+        # return utils.debug_image(self.nets_ema, self.args, inputs=inputs, step=step)
 
     def _training_step(self, inputs, step):
         # x_real, y_org = inputs.x_src, inputs.y_src

@@ -237,7 +237,9 @@ class SolverBase(nn.Module):
         nets_ema = self.nets_ema
         resume_iter = args.resume_iter
         self._load_checkpoint(args.resume_iter)
-        calculate_metrics(nets_ema, args, step=resume_iter, mode='latent')
+
+        if self.args.latent_dim > 0:
+            calculate_metrics(nets_ema, args, step=resume_iter, mode='latent')
         calculate_metrics(nets_ema, args, step=resume_iter, mode='reference')
 
 
