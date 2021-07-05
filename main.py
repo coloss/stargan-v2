@@ -209,9 +209,11 @@ if __name__ == '__main__':
         with open(args.config_file, 'r') as f:
             opt = yaml.load(f, Loader=yaml.FullLoader)
         # opt.update(vars(args))
+        iter = args.resume_iter
         d = vars(args)
         d.update(opt)
         # args = opt
+        args.resume_iter = iter
         if args.resume_iter > 0:
             print(f"Resuming training from step {args.resume_iter}")
 
