@@ -47,11 +47,12 @@ class SolverBase(nn.Module):
         for name, module in self.nets_ema.items():
             setattr(self, name + '_ema', module)
 
-        experiment_name = self._create_experiment_name()
+
         t = datetime.datetime.now().strftime("%Y_%m_%d_%H-%M-%S")
-        version = t + "_" + experiment_name
 
         if (not hasattr(self.args, 'run_dir')) or self.args.run_dir == '' or self.args.run_dir == 'todo':
+            experiment_name = self._create_experiment_name()
+            version = t + "_" + experiment_name
             self.args.run_dir = str(Path(self.args.expr_dir) / version)
         else:
             version = self.args.run_dir

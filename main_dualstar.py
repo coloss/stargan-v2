@@ -213,7 +213,7 @@ if __name__ == '__main__':
         print(f"A config file was specified. Reading settings from '{args.config_file}'")
         with open(args.config_file, 'r') as f:
             opt = yaml.load(f, Loader=yaml.FullLoader)
-        opt.update(vars(args))
+        # opt.update(vars(args))
         d = vars(args)
         d.update(opt)
         # args = opt
