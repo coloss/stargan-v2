@@ -190,9 +190,9 @@ def debug_image_paired(nets, args, inputs, step):
             image_path_list[Path(filename).stem[7:]] = filename
 
     # reference-guided image synthesis
-    filename = ospj(args.sample_dir, '%06d_reference.jpg' % (step))
-    translate_using_reference(nets, args, x_all_src, x_all_ref, labels_all_ref, filename)
-    image_path_list[Path(filename).stem[7:]] = filename
+    # filename = ospj(args.sample_dir, '%06d_reference.jpg' % (step))
+    # translate_using_reference(nets, args, x_all_src, x_all_ref, labels_all_ref, filename)
+    # image_path_list[Path(filename).stem[7:]] = filename
     return image_path_list
 
 
