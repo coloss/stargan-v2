@@ -55,9 +55,9 @@ class SolverBase(nn.Module):
             version = t + "_" + experiment_name
             self.args.run_dir = str(Path(self.args.expr_dir) / version)
         else:
-            version = self.args.run_dir
-            t = self.args.run_dir[:len(t)]
-            experiment_name = self.args.run_dir[len(t)+1 :]
+            version = Path(self.args.run_dir).name
+            t = version[:len(t)]
+            experiment_name = version[len(t)+1 :]
 
         self.args.checkpoint_dir = str(Path(self.args.run_dir) / "checkpoints")
         self.args.sample_dir = str(Path(self.args.run_dir) / "samples")
