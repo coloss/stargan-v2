@@ -42,6 +42,8 @@ class SolverDualStar(SolverBase):
     def _create_experiment_name(self):
         name = "DualStarGAN"
         name += "_" + "-".join(self.args.domain_names)
+        if self.args.direction != 'bi':
+            name += "_" + self.args.direction
         if self.args.lambda_sup_photo is not None and self.args.lambda_sup_photo != 0:
             name += "_UniRec"
             if self.args.lambda_sup_photo != 1.:
