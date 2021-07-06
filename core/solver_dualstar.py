@@ -42,6 +42,10 @@ class SolverDualStar(SolverBase):
     def _create_experiment_name(self):
         name = "DualStarGAN"
         name += "_" + "-".join(self.args.domain_names)
+        if self.args.lambda_sup_photo is not None and self.args.lambda_sup_photo != 0:
+            name += "_UniRec"
+            if self.args.lambda_sup_photo != 1.:
+                name += f"-{self.args.lambda_sup_photo:0.2f}"
         return name
 
     def _configure_optimizers(self):
@@ -83,11 +87,11 @@ class SolverDualStar(SolverBase):
             if args.direction == 'bi':
                 masks = nets.fan.get_heatmap(torch.cat([x_real, y_real], dim=0))
             elif args.direction == 'x2y':
-                masks = nets.fan.get_heatmap(torch.cat(x_real, dim=0))
-                masks = torch.cat([masks, masks], dim=0)
+                masks = nets.fan.get_heatmap(x_real)
+                # masks = torch.cat([masks], dim=0)
             elif args.direction == 'y2x':
-                masks = nets.fan.get_heatmap(torch.cat(y_real, dim=0))
-                masks = torch.cat([masks, masks], dim=0)
+                masks = nets.fan.get_heatmap(y_real)
+                # masks = torch.cat([masks, masks], dim=0)
             else:
                 raise ValueError(f"Invalid translation direction: {self.args.direction}")
         else:
@@ -180,9 +184,21 @@ class SolverDualStar(SolverBase):
 
 
 def compute_d_loss(nets, args, x_real, y_real, x_labels, y_labels, masks=None):
+    if args.direction == 'bi':
+        full_image_batch_real = torch.cat([x_real, y_real], dim=0)
+        full_label_batch_real = torch.cat([x_labels, y_labels], dim=0)
+        full_label_batch_fake = torch.cat([y_labels, x_labels], dim=0)
+    elif args.direction == 'x2y':
+        full_image_batch_real = torch.cat([x_real, ], dim=0)
+        full_label_batch_real = torch.cat([x_labels, ], dim=0)
+        full_label_batch_fake = torch.cat([y_labels, ], dim=0)
+    elif args.direction == 'y2x':
+        full_image_batch_real = torch.cat([y_real,], dim=0)
+        full_label_batch_real = torch.cat([y_labels,], dim=0)
+        full_label_batch_fake = torch.cat([x_labels,], dim=0)
+    else:
+        raise ValueError(f"")
 
-    full_image_batch_real = torch.cat([x_real, y_real], dim=0)
-    full_label_batch_real = torch.cat([x_labels, y_labels], dim=0)
     # with real images
     full_image_batch_real.requires_grad_()
 
@@ -195,16 +211,27 @@ def compute_d_loss(nets, args, x_real, y_real, x_labels, y_labels, masks=None):
     with torch.no_grad():
         s_real = nets.style_encoder(full_image_batch_real, full_label_batch_real)
 
-    s_x_real = s_real[:x_real.shape[0]]
-    s_y_real = s_real[x_real.shape[0]:]
 
-    # flip x and y for target styles
-    s_target = torch.cat([s_y_real, s_x_real], dim=0)
+    if args.direction == 'bi':
+        s_x_real = s_real[:x_real.shape[0]]
+        s_y_real = s_real[x_real.shape[0]:]
+
+        # flip x and y for target styles
+        s_target = torch.cat([s_y_real, s_x_real], dim=0)
+    elif args.direction == 'x2y':
+        s_y_real = s_real
+        # flip x and y for target styles
+        s_target = s_y_real
+    elif args.direction == 'y2x':
+        s_x_real = s_real
+        # flip x and y for target styles
+        s_target = s_x_real
+    else:
+        raise ValueError(f"")
 
     # generate x with style of y and vice versa
     fake_image_batch = nets.generator(full_image_batch_real, s_target, masks=masks)
 
-    full_label_batch_fake = torch.cat([y_labels, x_labels], dim=0)
     out = nets.discriminator(fake_image_batch, full_label_batch_fake)
     loss_fake = adv_loss(out, 0)
 
@@ -221,21 +248,42 @@ def compute_g_loss(nets, args, x_real, y_real, x_labels, y_labels, masks=None):
     # if x_refs is not None:
     #     x_ref, x_ref2 = x_refs
 
-    full_image_batch_real = torch.cat([x_real, y_real], dim=0)
-    full_label_batch_real = torch.cat([x_labels, y_labels], dim=0)
-    full_label_batch_fake = torch.cat([y_labels, x_labels], dim=0)
+    if args.direction == 'bi':
+        full_image_batch_real = torch.cat([x_real, y_real], dim=0)
+        full_label_batch_real = torch.cat([x_labels, y_labels], dim=0)
+        full_label_batch_fake = torch.cat([y_labels, x_labels], dim=0)
+    elif args.direction == 'x2y':
+        full_image_batch_real = x_real
+        full_label_batch_real = x_labels
+        full_label_batch_fake = y_labels
+    elif args.direction == 'y2x':
+        full_image_batch_real = y_real
+        full_label_batch_real = y_labels
+        full_label_batch_fake = x_labels
+    else:
+        raise ValueError(f"")
 
     # # adversarial loss
     # if z_trgs is not None:
     #     s_trg = nets.mapping_network(z_trg, y_trg)
     # else:
-    s_real = nets.style_encoder(full_image_batch_real, full_label_batch_real)
 
-    style_x_real = s_real[:x_real.shape[0]]
-    style_y_real = s_real[x_real.shape[0]:]
-
-    # flip x and y for target styles
-    s_target = torch.cat([style_y_real, style_x_real], dim=0)
+    if args.direction == 'bi':
+        s_real = nets.style_encoder(full_image_batch_real, full_label_batch_real)
+        style_x_real = s_real[:x_real.shape[0]]
+        style_y_real = s_real[x_real.shape[0]:]
+        # flip x and y for target styles
+        s_target = torch.cat([style_y_real, style_x_real], dim=0)
+    elif args.direction == 'x2y':
+        style_x_real = nets.style_encoder(x_real, x_labels)
+        style_y_real = nets.style_encoder(y_real, y_labels)
+        s_target = style_y_real
+    elif args.direction == 'y2x':
+        style_y_real = nets.style_encoder(y_real, y_labels)
+        style_x_real = nets.style_encoder(x_real, x_labels)
+        s_target = style_x_real
+    else:
+        raise ValueError(f"")
 
     full_image_batch_fake = nets.generator(full_image_batch_real, s_target, masks=masks)
     out = nets.discriminator(full_image_batch_fake, full_label_batch_fake)
@@ -250,13 +298,41 @@ def compute_g_loss(nets, args, x_real, y_real, x_labels, y_labels, masks=None):
     # style_x_real = s_real[:x_real.shape[0]]
     # style_y_real = s_real[x_real.shape[0]:]
 
-    style_x_fake = s_fake[x_real.shape[0]:]
-    style_y_fake = s_fake[:x_real.shape[0]]
-
-    style_real = torch.cat([style_x_real, style_y_real], dim=0)
-    style_fake = torch.cat([style_x_fake, style_y_fake], dim=0)
+    if args.direction == 'bi':
+        style_x_fake = s_fake[x_real.shape[0]:]
+        style_y_fake = s_fake[:x_real.shape[0]]
+        style_real = torch.cat([style_x_real, style_y_real], dim=0)
+        style_fake = torch.cat([style_x_fake, style_y_fake], dim=0)
+    elif args.direction == 'x2y':
+        style_y_fake = s_fake
+        style_fake = s_fake
+        style_real = style_y_real
+    elif args.direction == 'y2x':
+        style_x_fake = s_fake
+        style_fake = s_fake
+        style_real = style_x_real
+    else:
+        raise ValueError(f"")
 
     loss_sty = torch.mean(torch.abs(style_real - style_fake))
+
+    # half-cycle reconstruction loss
+    if args.direction == 'bi':
+        x_fake = full_image_batch_fake[x_real.shape[0]:]
+        y_fake = full_image_batch_fake[:x_real.shape[0]]
+        half_cycle_x = torch.mean(torch.abs(x_fake - x_real))
+        half_cycle_y = torch.mean(torch.abs(y_fake - y_real))
+        half_cycle = half_cycle_x + half_cycle_y
+    elif args.direction == 'x2y':
+        y_fake = full_image_batch_fake
+        half_cycle_y = torch.mean(torch.abs(y_fake - y_real))
+        half_cycle = half_cycle_y
+    elif args.direction == 'y2x':
+        x_fake = full_image_batch_fake
+        half_cycle_x = torch.mean(torch.abs(x_fake - x_real))
+        half_cycle = half_cycle_x
+    else:
+        raise ValueError(f"")
 
     # diversity sensitive loss # does not apply here, no random style
     # if z_trgs is not None:
@@ -268,25 +344,40 @@ def compute_g_loss(nets, args, x_real, y_real, x_labels, y_labels, masks=None):
     # loss_ds = torch.mean(torch.abs(x_fake - x_fake2))
 
     # cycle-consistency loss
-    # x_fake = full_image_batch_fake[x_real.shape[0]:]
-    # y_fake = full_image_batch_fake[:x_real.shape[0]]
+    if args.direction == 'bi':
+        masks = nets.fan.get_heatmap(full_image_batch_fake) if args.w_hpf > 0 else None
 
-    masks = nets.fan.get_heatmap(full_image_batch_fake) if args.w_hpf > 0 else None
+        full_image_batch_rec_real_style = nets.generator(full_image_batch_fake, s_real, masks=masks)
+        full_image_batch_rec_fake_style = nets.generator(full_image_batch_fake, style_fake, masks=masks)
 
-    full_image_batch_rec_real_style = nets.generator(full_image_batch_fake, s_real, masks=masks)
-    full_image_batch_rec_fake_style = nets.generator(full_image_batch_fake, style_fake, masks=masks)
-
-    loss_cyc_real_style = torch.mean(torch.abs(full_image_batch_rec_real_style - full_image_batch_real))
-    loss_cyc_fake_style = torch.mean(torch.abs(full_image_batch_rec_fake_style - full_image_batch_real))
+        loss_cyc_real_style = torch.mean(torch.abs(full_image_batch_rec_real_style - full_image_batch_real))
+        loss_cyc_fake_style = torch.mean(torch.abs(full_image_batch_rec_fake_style - full_image_batch_real))
+    else:
+        loss_cyc_real_style = 0
+        loss_cyc_fake_style = 0
 
     loss = loss_adv + args.lambda_sty * loss_sty\
            + args.lambda_cyc_real_style * loss_cyc_real_style \
-           + args.lambda_cyc_fake_style * loss_cyc_fake_style
+           + args.lambda_cyc_fake_style * loss_cyc_fake_style \
+           + args.lambda_sup_photo * half_cycle
            #- args.lambda_ds * loss_ds
-    return loss, Munch(adv=loss_adv.item(),
+
+    metrics = Munch(adv=loss_adv.item(),
                        sty=loss_sty.item(),
-                       cyc_real_style=loss_cyc_real_style.item(),
-                       cyc_fake_style=loss_cyc_fake_style.item(),
+
                        # cyc=loss_cyc.item(),
                        # ds=loss_ds.item(),
                        )
+    if args.direction == 'bi':
+        metrics['sup_rec_x2y'] = half_cycle_x.item()
+        metrics['sup_rec_y2x'] = half_cycle_y.item()
+        metrics['sup_rec'] = half_cycle.item()
+        metrics['cyc_real_style'] = loss_cyc_real_style.item()
+        metrics['cyc_fake_style'] = loss_cyc_fake_style.item()
+    elif args.direction == 'x2y':
+        metrics['sup_rec_y2x'] = half_cycle_y.item()
+    elif args.direction == 'y2x':
+        metrics['sup_rec_x2y'] = half_cycle_x.item()
+    else:
+        raise ValueError(f"")
+    return loss, metrics

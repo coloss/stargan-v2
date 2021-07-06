@@ -115,6 +115,8 @@ if __name__ == '__main__':
                         help='Weight for R1 regularization')
     # parser.add_argument('--lambda_cyc', type=float, default=1,
     #                     help='Weight for cyclic consistency loss')
+    parser.add_argument('--lambda_sup_photo', type=float, default=0.0,
+                        help='Weight for one was reconstruction loss')
     parser.add_argument('--lambda_cyc_real_style', type=float, default=0.5,
                         help='Weight for cyclic consistency loss')
     parser.add_argument('--lambda_cyc_fake_style', type=float, default=0.5,
@@ -230,9 +232,10 @@ if __name__ == '__main__':
         # args = opt
         args.resume_iter = iter
         args.mode = mode
-        if isinstance(args.resume_iter, str) and args.resume_iter.isdigit():
-            args.resume_iter = int(args.resume_iter)
-        if args.resume_iter != 0:
-            print(f"Resuming training from step {args.resume_iter}")
+
+    if isinstance(args.resume_iter, str) and args.resume_iter.isdigit():
+        args.resume_iter = int(args.resume_iter)
+    if args.resume_iter != 0:
+        print(f"Resuming training from step {args.resume_iter}")
 
     main(args)

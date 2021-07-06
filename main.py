@@ -225,9 +225,10 @@ if __name__ == '__main__':
         # args = opt
         args.resume_iter = iter
         args.mode = mode
-        if isinstance(args.resume_iter, str) and args.resume_iter.isdigit():
-            args.resume_iter = int(args.resume_iter)
-        if args.resume_iter != 0:
-            print(f"Resuming training from step: {args.resume_iter}")
+
+    if isinstance(args.resume_iter, str) and args.resume_iter.isdigit():
+        args.resume_iter = int(args.resume_iter)
+    if args.resume_iter != 0:
+        print(f"Resuming training from step: {args.resume_iter}")
 
     main(args)
