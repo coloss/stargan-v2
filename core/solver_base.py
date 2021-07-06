@@ -174,7 +174,7 @@ class SolverBase(nn.Module):
                 image_dict = {}
                 for name, path in image_fname_dict.items():
                     image_dict["test_images/" + name] = Image(path)
-                self.logger.log_metrics(image_dict, step)
+                self.logger.log_metrics(image_dict)
                 print("Image saved to wandb")
 
     def fit(self, loaders):
