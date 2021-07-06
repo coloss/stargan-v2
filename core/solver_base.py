@@ -165,14 +165,17 @@ class SolverBase(nn.Module):
         inputs_val = next(fetcher_val)
         out_path = Path(self.args.sample_dir) / "test"
         out_path.mkdir(exist_ok=True, parents=True)
+        print("Generating paired cycle consistency image")
         image_fname_dict = utils.debug_image_paired(self.nets_ema, self.args, inputs=inputs_val, step=step,
                                                     outdir=str(out_path))
+        print("Image generated")
         if self.logger is not None:
             if isinstance(self.logger, WandbLogger):
                 image_dict = {}
                 for name, path in image_fname_dict.items():
                     image_dict["test_images/" + name] = Image(path)
                 self.logger.log_metrics(image_dict, step)
+                print("Image saved to wandb")
 
     def fit(self, loaders):
         args = self.args
