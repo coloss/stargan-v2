@@ -200,7 +200,7 @@ def debug_image_paired(nets, args, inputs, step, outdir = None):
     # N = x_all_src.size(0)
 
     # translate and reconstruct (reference-guided)
-    filename = ospj(outdir, '%06d_cycle_consistency_x2y2x.jpg' % (step))
+    filename = ospj(outdir, '%06d_cycle_consistency_xyx.jpg' % (step))
     translate_and_reconstruct(nets, args, x_all_src, labels_all_src, x_all_ref, labels_all_ref, filename)
     image_path_list[Path(filename).stem[7:]] = filename
 
@@ -210,7 +210,7 @@ def debug_image_paired(nets, args, inputs, step, outdir = None):
     labels_all_src = torch.cat([y_src_label, y_ref_label,], dim=0)
     labels_all_ref = torch.cat([x_src_label, x_ref_label,], dim=0)
 
-    filename = ospj(outdir, '%06d_cycle_consistency_y2x2y.jpg' % (step))
+    filename = ospj(outdir, '%06d_cycle_consistency_yxy.jpg' % (step))
     translate_and_reconstruct(nets, args, x_all_src, labels_all_src, x_all_ref, labels_all_ref, filename)
     image_path_list[Path(filename).stem[7:]] = filename
 
