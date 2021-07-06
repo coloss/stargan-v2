@@ -171,48 +171,50 @@ def debug_image_paired(nets, args, inputs, step, outdir = None):
     # labels_all_ref = torch.cat([y_src_label, y_ref_label, x_src_label, x_ref_label], dim=0)
 
     # one way
-    x_all_src = torch.cat([x_src, x_ref,], dim=0)
-    x_all_ref = torch.cat([y_src, y_ref, ], dim=0)
-    labels_all_src = torch.cat([x_src_label, x_ref_label,], dim=0)
-    labels_all_ref = torch.cat([y_src_label, y_ref_label,], dim=0)
+    if args.direction in ['bi', 'x2y']:
+        x_all_src = torch.cat([x_src, x_ref,], dim=0)
+        x_all_ref = torch.cat([y_src, y_ref, ], dim=0)
+        labels_all_src = torch.cat([x_src_label, x_ref_label,], dim=0)
+        labels_all_ref = torch.cat([y_src_label, y_ref_label,], dim=0)
 
-    ## SANITY CHECK - the image pairs correspond:
-    # idx = 0
-    # # for idx in range(1, x_real.shape[0]):
-    # x_src_np = (np.transpose(x_src.detach().cpu().numpy()[idx], [1,2,0]) + 1) / 2
-    # y_src_np = (np.transpose(y_src.detach().cpu().numpy()[idx], [1,2,0]) + 1) / 2
-    #
-    # x_ref_np = (np.transpose(x_ref.detach().cpu().numpy()[idx], [1,2,0]) + 1) / 2
-    # y_ref_np = (np.transpose(y_ref.detach().cpu().numpy()[idx], [1,2,0]) + 1) / 2
-    #
-    # import matplotlib.pyplot as plt
-    # plt.figure()
-    # plt.imshow(x_src_np)
-    # plt.figure()
-    # plt.imshow(y_src_np)
-    # plt.figure()
-    # plt.imshow(x_ref_np)
-    # plt.figure()
-    # plt.imshow(y_ref_np)
-    # plt.show()
+        ## SANITY CHECK - the image pairs correspond:
+        # idx = 0
+        # # for idx in range(1, x_real.shape[0]):
+        # x_src_np = (np.transpose(x_src.detach().cpu().numpy()[idx], [1,2,0]) + 1) / 2
+        # y_src_np = (np.transpose(y_src.detach().cpu().numpy()[idx], [1,2,0]) + 1) / 2
+        #
+        # x_ref_np = (np.transpose(x_ref.detach().cpu().numpy()[idx], [1,2,0]) + 1) / 2
+        # y_ref_np = (np.transpose(y_ref.detach().cpu().numpy()[idx], [1,2,0]) + 1) / 2
+        #
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.imshow(x_src_np)
+        # plt.figure()
+        # plt.imshow(y_src_np)
+        # plt.figure()
+        # plt.imshow(x_ref_np)
+        # plt.figure()
+        # plt.imshow(y_ref_np)
+        # plt.show()
 
-    # device = x_all_src.device
-    # N = x_all_src.size(0)
+        # device = x_all_src.device
+        # N = x_all_src.size(0)
 
-    # translate and reconstruct (reference-guided)
-    filename = ospj(outdir, '%06d_cycle_consistency_xyx.jpg' % (step))
-    translate_and_reconstruct(nets, args, x_all_src, labels_all_src, x_all_ref, labels_all_ref, filename)
-    image_path_list[Path(filename).stem[7:]] = filename
+        # translate and reconstruct (reference-guided)
+        filename = ospj(outdir, '%06d_cycle_consistency_xyx.jpg' % (step))
+        translate_and_reconstruct(nets, args, x_all_src, labels_all_src, x_all_ref, labels_all_ref, filename)
+        image_path_list[Path(filename).stem[7:]] = filename
 
     # other way
-    x_all_src = torch.cat([y_src, y_ref, ], dim=0)
-    x_all_ref = torch.cat([x_src, x_ref,], dim=0)
-    labels_all_src = torch.cat([y_src_label, y_ref_label,], dim=0)
-    labels_all_ref = torch.cat([x_src_label, x_ref_label,], dim=0)
+    if args.direction in ['bi', 'y2x']:
+        x_all_src = torch.cat([y_src, y_ref, ], dim=0)
+        x_all_ref = torch.cat([x_src, x_ref,], dim=0)
+        labels_all_src = torch.cat([y_src_label, y_ref_label,], dim=0)
+        labels_all_ref = torch.cat([x_src_label, x_ref_label,], dim=0)
 
-    filename = ospj(outdir, '%06d_cycle_consistency_yxy.jpg' % (step))
-    translate_and_reconstruct(nets, args, x_all_src, labels_all_src, x_all_ref, labels_all_ref, filename)
-    image_path_list[Path(filename).stem[7:]] = filename
+        filename = ospj(outdir, '%06d_cycle_consistency_yxy.jpg' % (step))
+        translate_and_reconstruct(nets, args, x_all_src, labels_all_src, x_all_ref, labels_all_ref, filename)
+        image_path_list[Path(filename).stem[7:]] = filename
 
 
     # # latent-guided image synthesis
