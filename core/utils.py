@@ -161,15 +161,15 @@ def debug_image_paired(nets, args, inputs, step):
     x_src_label, y_src_label = inputs.y_src
     x_ref_label, y_ref_label = inputs.y_ref
 
-    # x_all_src = torch.cat([x_src, x_ref, y_src, y_ref], dim=0)
-    # x_all_ref = torch.cat([y_src, y_ref, x_src, x_ref], dim=0)
-    # labels_all_src = torch.cat([x_src_label, x_ref_label, y_src_label, y_ref_label], dim=0)
-    # labels_all_ref = torch.cat([y_src_label, y_ref_label, x_src_label, x_ref_label], dim=0)
-
-    x_all_src = torch.cat([x_src, x_ref,], dim=0)
-    x_all_ref = torch.cat([y_src, y_ref, ], dim=0)
-    labels_all_src = torch.cat([x_src_label, x_ref_label,], dim=0)
-    labels_all_ref = torch.cat([y_src_label, y_ref_label,], dim=0)
+    x_all_src = torch.cat([x_src, x_ref, y_src, y_ref], dim=0)
+    x_all_ref = torch.cat([y_src, y_ref, x_src, x_ref], dim=0)
+    labels_all_src = torch.cat([x_src_label, x_ref_label, y_src_label, y_ref_label], dim=0)
+    labels_all_ref = torch.cat([y_src_label, y_ref_label, x_src_label, x_ref_label], dim=0)
+    #
+    # x_all_src = torch.cat([x_src, x_ref,], dim=0)
+    # x_all_ref = torch.cat([y_src, y_ref, ], dim=0)
+    # labels_all_src = torch.cat([x_src_label, x_ref_label,], dim=0)
+    # labels_all_ref = torch.cat([y_src_label, y_ref_label,], dim=0)
 
     device = x_all_src.device
     N = x_all_src.size(0)
