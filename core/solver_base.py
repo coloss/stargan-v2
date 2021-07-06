@@ -120,9 +120,30 @@ class SolverBase(nn.Module):
         for ckptio in self.ckptios:
             ckptio.save(step)
 
-    def _load_checkpoint(self, step):
-        for ckptio in self.ckptios:
-            ckptio.load(step)
+    def _load_checkpoint(self, step=None):
+        if step is not None:
+            self.args.resume_iter = step
+
+        if self.args.resume_iter is None:
+            return
+        if isinstance(self.args.resume_iter, str):
+            if self.args.resume_iter == 'latest':
+                path = Path(self.ckptios[0].fname_template)
+                ckpts = list(path.parent.glob("*.ckpt"))
+                ckpts.sort(reverse=True)
+                num = ckpts[0].name.split("_")[0]
+                self.args.resume_iter = int(num)
+            else:
+                raise ValueError(f"Invalid resume_iter value: {self.args.resume_iter}")
+
+        if self.args.resume_iter is not None and not isinstance(self.args.resume_iter, int):
+            raise ValueError(f"Invalid resume_iter value: {self.args.resume_iter}")
+
+        step = self.args.resume_iter
+        if step > 0:
+            for ckptio in self.ckptios:
+                ckptio.load(step)
+
 
     def _reset_grad(self):
         for optim in self.optims.values():
@@ -137,6 +158,22 @@ class SolverBase(nn.Module):
     def _generate_images(self, inputs, step):
         raise NotImplementedError()
 
+    def test_paired_images(self, loaders):
+        self._load_checkpoint()
+        step = self.args.resume_iter
+        fetcher_val = InputFetcher(loaders.val, None, self.args.latent_dim, 'val')
+        inputs_val = next(fetcher_val)
+        out_path = Path(self.args.sample_dir) / "test"
+        out_path.mkdir(exist_ok=True, parents=True)
+        image_fname_dict = utils.debug_image_paired(self.nets_ema, self.args, inputs=inputs_val, step=step,
+                                                    outdir=str(out_path))
+        if self.logger is not None:
+            if isinstance(self.logger, WandbLogger):
+                image_dict = {}
+                for name, path in image_fname_dict.items():
+                    image_dict["test_images/" + name] = Image(path)
+                self.logger.log_metrics(image_dict, step)
+
     def fit(self, loaders):
         args = self.args
         nets = self.nets
@@ -149,8 +186,7 @@ class SolverBase(nn.Module):
         inputs_val = next(fetcher_val)
 
         # resume training if necessary
-        if args.resume_iter > 0:
-            self._load_checkpoint(args.resume_iter)
+        self._load_checkpoint()
 
         # remember the initial value of ds weight
         self.initial_lambda_ds = args.lambda_ds
@@ -218,7 +254,7 @@ class SolverBase(nn.Module):
         args = self.args
         nets_ema = self.nets_ema
         os.makedirs(args.result_dir, exist_ok=True)
-        self._load_checkpoint(args.resume_iter)
+        self._load_checkpoint()
 
         src = next(InputFetcher(loaders.src, None, args.latent_dim, 'test'))
         ref = next(InputFetcher(loaders.ref, None, args.latent_dim, 'test'))
@@ -236,7 +272,7 @@ class SolverBase(nn.Module):
         args = self.args
         nets_ema = self.nets_ema
         resume_iter = args.resume_iter
-        self._load_checkpoint(args.resume_iter)
+        self._load_checkpoint()
 
         if self.args.latent_dim > 0:
             calculate_metrics(nets_ema, args, step=resume_iter, mode='latent')

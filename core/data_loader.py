@@ -346,8 +346,7 @@ def get_test_loader(root, img_size=256, batch_size=32,
         A.Resize(img_size, img_size),
         A.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
         A.pytorch.transforms.ToTensorV2(),
-    ],
-        additional_targets=additional_targets)
+    ], additional_targets=additional_targets)
 
     if which == 'correspondence':
         dataset = MultiFolderCorrespondenceImageDataset(root, domain_names, transform, recursive=True)

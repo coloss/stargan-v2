@@ -168,8 +168,7 @@ class Solver(SolverBase):
         args = self.args
         nets_ema = self.nets_ema
         os.makedirs(args.result_dir, exist_ok=True)
-        self._load_checkpoint(args.resume_iter)
-
+        self._load_checkpoint()
         src = next(InputFetcher(loaders.src, None, args.latent_dim, 'test'))
         ref = next(InputFetcher(loaders.ref, None, args.latent_dim, 'test'))
 
@@ -186,7 +185,7 @@ class Solver(SolverBase):
         args = self.args
         nets_ema = self.nets_ema
         resume_iter = args.resume_iter
-        self._load_checkpoint(args.resume_iter)
+        self._load_checkpoint()
         if self.args.latent_dim > 0:
             calculate_metrics(nets_ema, args, step=resume_iter, mode='latent')
         calculate_metrics(nets_ema, args, step=resume_iter, mode='reference')

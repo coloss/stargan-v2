@@ -80,6 +80,15 @@ def main(args):
         solver.sample(loaders)
     elif args.mode == 'eval':
         solver.evaluate()
+    elif args.mode == 'paired_images':
+        loaders = Munch(val=get_test_loader(root=args.val_img_dir,
+                                            which='correspondence',
+                                            domain_names=args.domain_names,
+                                            img_size=args.img_size,
+                                            batch_size=args.val_batch_size,
+                                            shuffle=True,
+                                            num_workers=args.num_workers))
+        solver.test_paired_images(loaders)
     elif args.mode == 'align':
         from core.wing import align_faces
         align_faces(args, args.inp_dir, args.out_dir)
@@ -127,7 +136,7 @@ if __name__ == '__main__':
                         help='Probabilty of using random-resized cropping')
     parser.add_argument('--total_iters', type=int, default=100000,
                         help='Number of total iterations')
-    parser.add_argument('--resume_iter', type=int, default=0,
+    parser.add_argument('--resume_iter', type=str, default="0",
                         help='Iterations to resume training/testing')
     parser.add_argument('--batch_size', type=int, default=8,
                         help='Batch size for training')
@@ -148,7 +157,7 @@ if __name__ == '__main__':
 
     # misc
     parser.add_argument('--mode', type=str, required=True,
-                        choices=['train', 'sample', 'eval', 'align'],
+                        choices=['train', 'sample', 'eval', 'align', 'paired_images'],
                         help='This argument is used in solver')
     parser.add_argument('--num_workers', type=int, default=4,
                         help='Number of workers used in DataLoader')
@@ -210,11 +219,15 @@ if __name__ == '__main__':
             opt = yaml.load(f, Loader=yaml.FullLoader)
         # opt.update(vars(args))
         iter = args.resume_iter
+        mode = args.mode
         d = vars(args)
         d.update(opt)
         # args = opt
         args.resume_iter = iter
-        if args.resume_iter > 0:
-            print(f"Resuming training from step {args.resume_iter}")
+        args.mode = mode
+        if isinstance(args.resume_iter, str) and args.resume_iter.isdigit():
+            args.resume_iter = int(args.resume_iter)
+        if args.resume_iter != 0:
+            print(f"Resuming training from step: {args.resume_iter}")
 
     main(args)
