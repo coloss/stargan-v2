@@ -125,10 +125,12 @@ if __name__ == '__main__':
                     help='Weight for discriminator real loss')
     parser.add_argument('--lambda_d_fake', type=float, default=1.0,
                     help='Weight for discriminator fake loss')
-    # parser.add_argument('--vgg_loss_layers', type=list, default=[4, 9],
-    #                     help='VGG layers to use for perceptual loss.')
-    # parser.add_argument('--lambda_vgg', type=list, default=[0.5, 1],
-    #                     help='Weights for previously specified VGG layers')
+    parser.add_argument('--lambda_vgg', type=float, default=0.0,
+                        help='Weight for cyclic consistency loss')
+    parser.add_argument('--vgg_loss_layers', type=list, default=[4, 9],
+                        help='VGG layers to use for perceptual loss.')
+    parser.add_argument('--lambda_vgg_layers', type=list, default=[0.5, 1],
+                        help='Weights for previously specified VGG layers')
     parser.add_argument('--lambda_sty', type=float, default=1,
                         help='Weight for style reconstruction loss')
     parser.add_argument('--lambda_ds', type=float, default=1,

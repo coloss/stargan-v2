@@ -18,6 +18,7 @@ import numpy as np
 from torchvision import models
 from scipy import linalg
 from core.data_loader import get_eval_loader
+from collections import OrderedDict
 
 try:
     from tqdm import tqdm
@@ -42,7 +43,7 @@ class VGG19Loss(nn.Module):
         for idx, weight in self.layer_activation_indices_weights.items():
             d = self.diff(feat_x[idx], feat_y[idx])
             out[idx] = d
-            loss += feat_x[idx]*weight
+            loss += d*weight
         return loss, out
 
 
@@ -107,12 +108,23 @@ cfgs = {
 def _vgg(arch, cfg, batch_norm, pretrained, progress, **kwargs):
     if pretrained:
         kwargs['init_weights'] = False
-    model = make_layers(cfgs[cfg], batch_norm=batch_norm)
+    layers = make_layers(cfgs[cfg], batch_norm=batch_norm)
     if pretrained:
         state_dict = load_state_dict_from_url(model_urls[arch],
                                               progress=progress)
-        model.load_state_dict(state_dict)
-    return model
+        state_dict2 = OrderedDict()
+        for key in state_dict.keys():
+            if "features" in key:
+                # hack layer names
+                state_dict2[key[len("features."):]] = state_dict[key]
+        layers_ = []
+        for bi, block in enumerate(layers):
+            for layer in block:
+                # layer.name = "features." + layer.name
+                layers_ += [layer]
+        net = nn.Sequential(*layers_)
+        net.load_state_dict(state_dict2)
+    return layers
 
 
 model_urls = {
