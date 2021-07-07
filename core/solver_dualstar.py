@@ -25,6 +25,8 @@ import core.utils as utils
 from metrics.eval import calculate_metrics
 from core.solver_base import SolverBase, adv_loss, r1_reg, moving_average
 from metrics.vgg import VGG19Loss
+from metrics.FRNet import VGGFace2Loss
+from metrics.EmoNetLoss import EmoNetLoss
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -34,14 +36,45 @@ class SolverDualStar(SolverBase):
         super().__init__(args)
 
     def _build_model(self):
-        if self.args.lambda_vgg != 0:
-            assert len(self.args.vgg_loss_layers) == len(self.args.lambda_vgg_layers)
-            self.vgg_loss = VGG19Loss(dict(zip(self.args.vgg_loss_layers, self.args.lambda_vgg_layers)))
-        else:
-            self.vgg_loss = None
         if self.args.direction not in ['bi', 'x2y', 'y2x']:
             raise ValueError(f"Invalid direction specification: {self.args.direction}")
+
+        self.loss_nets = Munch()
+
+        if self.args.lambda_vgg != 0:
+            assert len(self.args.vgg_loss_layers) == len(self.args.lambda_vgg_layers)
+            self.loss_nets['vgg_loss'] = VGG19Loss(dict(zip(self.args.vgg_loss_layers, self.args.lambda_vgg_layers)))
+        else:
+            self.loss_nets['vgg_loss'] = None
+
+        if self.args.lambda_face_rec != 0:
+
+            self.loss_nets['facerec_loss'] = VGGFace2Loss(metric='cos', unnormalize=True)
+        else:
+            self.loss_nets['facerec_loss'] = None
+
+        if self.args.lambda_emo_rec != 0:
+            self.loss_nets['emorec_loss'] = EmoNetLoss(unnormalize=True)
+        else:
+            self.loss_nets['emorec_loss'] = None
         return build_model_dualstargan(self.args)
+
+    def to(self, *args, **kwargs):
+        device, dtype, non_blocking = torch._C._nn._parse_to(*args, **kwargs)
+
+        if dtype is not None:
+            if not dtype.is_floating_point:
+                raise TypeError('nn.Module.to only accepts floating point '
+                                'dtypes, but got desired dtype={}'.format(dtype))
+
+        def convert(t):
+            return t.to(device, dtype if t.is_floating_point() else None, non_blocking)
+
+        for key, value in self.loss_nets.items():
+            if value is not None:
+                self.loss_nets[key] = value._apply(convert)
+
+        return super().to(*args, **kwargs)
 
     def _create_experiment_name(self):
         name = "DualStarGAN"
@@ -56,6 +89,15 @@ class SolverDualStar(SolverBase):
             name += "_VGG"
             if self.args.lambda_vgg != 1.:
                 name += f"-{self.args.lambda_vgg:0.2f}"
+        if self.args.lambda_face_rec != 0:
+            name += "_FR"
+            if self.args.lambda_face_rec != 1.:
+                name += f"-{self.args.lambda_face_rec:0.2f}"
+
+        if self.args.lambda_emo_rec != 0:
+            name += "_ER"
+            if self.args.lambda_emo_rec != 1.:
+                name += f"-{self.args.lambda_emo_rec:0.2f}"
         return name
 
     def _configure_optimizers(self):
@@ -221,7 +263,6 @@ class SolverDualStar(SolverBase):
         with torch.no_grad():
             s_real = nets.style_encoder(full_image_batch_real, full_label_batch_real)
 
-
         if args.direction == 'bi':
             s_x_real = s_real[:x_real.shape[0]]
             s_y_real = s_real[x_real.shape[0]:]
@@ -334,28 +375,54 @@ class SolverDualStar(SolverBase):
             half_cycle_y = torch.mean(torch.abs(y_fake - y_real))
             half_cycle = half_cycle_x + half_cycle_y
 
-            if self.vgg_loss is not None:
-                half_cycle_x_vgg, _ = self.vgg_loss(x_fake, x_real)
-                half_cycle_y_vgg, _ = self.vgg_loss(y_fake, y_real)
+            if self.loss_nets.vgg_loss is not None:
+                half_cycle_x_vgg, _ = self.loss_nets.vgg_loss(x_fake, x_real)
+                half_cycle_y_vgg, _ = self.loss_nets.vgg_loss(y_fake, y_real)
                 half_cycle_vgg = half_cycle_x_vgg + half_cycle_y_vgg
+
+            if self.loss_nets.facerec_loss is not None:
+                half_cycle_x_face_rec = self.loss_nets.facerec_loss(x_fake, x_real)
+                half_cycle_y_face_rec = self.loss_nets.facerec_loss(y_fake, y_real)
+                half_cycle_face_rec = half_cycle_x_face_rec + half_cycle_y_face_rec
+
+            if self.loss_nets.emorec_loss is not None:
+                half_cycle_x_emo_rec = self.loss_nets.emorec_loss.compute_loss(x_fake, x_real)[1]
+                half_cycle_y_emo_rec = self.loss_nets.emorec_loss.compute_loss(y_fake, y_real)[1]
+                half_cycle_emo_rec = half_cycle_x_emo_rec + half_cycle_y_emo_rec
 
         elif args.direction == 'x2y':
             y_fake = full_image_batch_fake
             half_cycle_y = torch.mean(torch.abs(y_fake - y_real))
             half_cycle = half_cycle_y
 
-            if self.vgg_loss is not None:
-                half_cycle_y_vgg, _ = self.vgg_loss(y_fake, y_real)
+            if self.loss_nets.vgg_loss is not None:
+                half_cycle_y_vgg, _ = self.loss_nets.vgg_loss(y_fake, y_real)
                 half_cycle_vgg = half_cycle_y_vgg
+
+            if self.loss_nets.facerec_loss is not None:
+                half_cycle_y_face_rec = self.loss_nets.facerec_loss(y_fake, y_real)
+                half_cycle_face_rec = half_cycle_y_face_rec
+
+            if self.loss_nets.emorec_loss is not None:
+                half_cycle_y_emo_rec = self.loss_nets.emorec_loss.compute_loss(y_fake, y_real)[1]
+                half_cycle_emo_rec = half_cycle_y_emo_rec
 
         elif args.direction == 'y2x':
             x_fake = full_image_batch_fake
             half_cycle_x = torch.mean(torch.abs(x_fake - x_real))
             half_cycle = half_cycle_x
 
-            if self.vgg_loss is not None:
-                half_cycle_x_vgg, _ = self.vgg_loss(x_fake, x_real)
+            if self.loss_nets.vgg_loss is not None:
+                half_cycle_x_vgg, _ = self.loss_nets.vgg_loss(x_fake, x_real)
                 half_cycle_vgg = half_cycle_x_vgg
+
+            if self.loss_nets.facerec_loss is not None:
+                half_cycle_x_face_rec = self.loss_nets.facerec_loss(x_fake, x_real)
+                half_cycle_face_rec = half_cycle_x_face_rec
+
+            if self.loss_nets.emorec_loss is not None:
+                half_cycle_x_emo_rec = self.loss_nets.emorec_loss.compute_loss(x_fake, x_real)[1]
+                half_cycle_emo_rec = half_cycle_x_emo_rec
 
         else:
             raise ValueError(f"")
@@ -379,9 +446,17 @@ class SolverDualStar(SolverBase):
             loss_cyc_real_style = torch.mean(torch.abs(full_image_batch_rec_real_style - full_image_batch_real))
             loss_cyc_fake_style = torch.mean(torch.abs(full_image_batch_rec_fake_style - full_image_batch_real))
 
-            if self.vgg_loss is not None:
-                loss_cyc_vgg_real_style, _ = self.vgg_loss(full_image_batch_rec_real_style, full_image_batch_real)
-                loss_cyc_vgg_fake_style, _ = self.vgg_loss(full_image_batch_rec_fake_style, full_image_batch_real)
+            if self.loss_nets.vgg_loss is not None:
+                loss_cyc_vgg_real_style, _ = self.loss_nets.vgg_loss(full_image_batch_rec_real_style, full_image_batch_real)
+                loss_cyc_vgg_fake_style, _ = self.loss_nets.vgg_loss(full_image_batch_rec_fake_style, full_image_batch_real)
+
+            if self.loss_nets.facerec_loss is not None:
+                loss_cyc_facerec_real_style = self.loss_nets.facerec_loss(full_image_batch_rec_real_style, full_image_batch_real)
+                loss_cyc_facerec_fake_style = self.loss_nets.facerec_loss(full_image_batch_rec_fake_style, full_image_batch_real)
+
+            if self.loss_nets.emorec_loss is not None:
+                loss_cyc_emorec_real_style = self.loss_nets.emorec_loss.compute_loss(full_image_batch_rec_real_style, full_image_batch_real)[1]
+                loss_cyc_emorec_fake_style = self.loss_nets.emorec_loss.compute_loss(full_image_batch_rec_fake_style, full_image_batch_real)[1]
 
         else:
             loss_cyc_real_style = 0
@@ -393,11 +468,24 @@ class SolverDualStar(SolverBase):
                + args.lambda_sup_photo * half_cycle
                #- args.lambda_ds * loss_ds
 
-        if self.vgg_loss is not None:
+        if self.loss_nets.vgg_loss is not None:
             if self.args.direction == 'bi':
                 loss_cyc_vgg = 0.5*loss_cyc_vgg_real_style + 0.5*loss_cyc_vgg_fake_style
                 loss += self.args.lambda_vgg * loss_cyc_vgg
             loss += self.args.lambda_vgg * half_cycle_vgg
+
+
+        if self.loss_nets.facerec_loss is not None:
+            if self.args.direction == 'bi':
+                loss_cyc_facerec = 0.5*loss_cyc_facerec_real_style + 0.5*loss_cyc_facerec_fake_style
+                loss += self.args.lambda_face_rec * loss_cyc_facerec
+            loss += self.args.lambda_face_rec * half_cycle_face_rec
+
+        if self.loss_nets.emorec_loss is not None:
+            if self.args.direction == 'bi':
+                loss_cyc_emorec = 0.5*loss_cyc_emorec_real_style + 0.5*loss_cyc_emorec_fake_style
+                loss += self.args.lambda_emo_rec * loss_cyc_emorec
+            loss += self.args.lambda_emo_rec * half_cycle_emo_rec
 
 
         metrics = Munch(adv=loss_adv.item(),
@@ -409,18 +497,48 @@ class SolverDualStar(SolverBase):
             metrics['sup_rec'] = half_cycle.item()
             metrics['cyc_real_style'] = loss_cyc_real_style.item()
             metrics['cyc_fake_style'] = loss_cyc_fake_style.item()
-            if self.vgg_loss is not None:
-                metrics['half_cycle_vgg'] = half_cycle_vgg.item()
-                metrics['loss_cyc_vgg_real_style'] = loss_cyc_vgg_fake_style.item()
-                metrics['loss_cyc_vgg_fake_style'] = loss_cyc_fake_style.item()
+            if self.loss_nets.vgg_loss is not None:
+                metrics['sup_rec_vgg_x2y'] = half_cycle_x_vgg.item()
+                metrics['sup_rec_vgg_y2x'] = half_cycle_y_vgg.item()
+                metrics['sup_rec_vgg'] = half_cycle_vgg.item()
+                metrics['loss_cyc_vgg_real_style'] = loss_cyc_vgg_real_style.item()
+                metrics['loss_cyc_vgg_fake_style'] = loss_cyc_vgg_fake_style.item()
+
+            if self.loss_nets.facerec_loss is not None:
+                metrics['sup_rec_facerec_x2y'] = half_cycle_x_face_rec.item()
+                metrics['sup_rec_facerec_y2x'] = half_cycle_y_face_rec.item()
+                metrics['sup_rec_facerec'] = half_cycle_face_rec.item()
+                metrics['loss_cyc_facerec_real_style'] = loss_cyc_facerec_real_style.item()
+                metrics['loss_cyc_facerec_fake_style'] = loss_cyc_facerec_fake_style.item()
+
+            if self.loss_nets.emorec_loss is not None:
+                metrics['sup_rec_emorec_x2y'] = half_cycle_x_emo_rec.item()
+                metrics['sup_rec_emorec_y2x'] = half_cycle_y_emo_rec.item()
+                metrics['sup_rec_emorec'] = half_cycle_emo_rec.item()
+                metrics['loss_cyc_emorec_real_style'] = loss_cyc_emorec_real_style.item()
+                metrics['loss_cyc_emorec_fake_style'] = loss_cyc_emorec_fake_style.item()
+
         elif args.direction == 'x2y':
             metrics['sup_rec_y2x'] = half_cycle_y.item()
-            if self.vgg_loss is not None:
+            if self.loss_nets.vgg_loss is not None:
                 metrics['sup_vgg_y2x'] = half_cycle_y_vgg.item()
+
+            if self.loss_nets.facerec_loss is not None:
+                metrics['sup_facerec_y2x'] = half_cycle_y_face_rec.item()
+
+            if self.loss_nets.emorec_loss is not None:
+                metrics['sup_emorec_y2x'] = half_cycle_y_emo_rec.item()
+
         elif args.direction == 'y2x':
             metrics['sup_rec_x2y'] = half_cycle_x.item()
-            if self.vgg_loss is not None:
+            if self.loss_nets.vgg_loss is not None:
                 metrics['sup_vgg_x2y'] = half_cycle_x_vgg.item()
+
+            if self.loss_nets.facerec_loss is not None:
+                metrics['sup_facerec_x2y'] = half_cycle_x_face_rec.item()
+
+            if self.loss_nets.emorec_loss is not None:
+                metrics['sup_emorec_x2y'] = half_cycle_x_emo_rec.item()
         else:
             raise ValueError(f"")
         return loss, metrics

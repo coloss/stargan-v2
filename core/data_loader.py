@@ -262,6 +262,8 @@ def get_train_loader(root, which='source', img_size=256,
         A.Normalize(mean=[0.5, 0.5, 0.5],
                              std=[0.5, 0.5, 0.5]),
         A.pytorch.transforms.ToTensorV2(),
+        # A.Normalize(mean=[0.5, 0.5, 0.5],
+        #                      std=[0.5, 0.5, 0.5])
     ],
         additional_targets=additional_targets
     )
@@ -319,6 +321,7 @@ def get_eval_loader(root, img_size=256, batch_size=32,
         A.Resize(height, width),
         A.Normalize(mean=mean, std=std),
         A.pytorch.transforms.ToTensorV2(),
+        # A.Normalize(mean=mean, std=std),
     ],
         additional_targets=additional_targets)
 
@@ -346,6 +349,7 @@ def get_test_loader(root, img_size=256, batch_size=32,
         A.Resize(img_size, img_size),
         A.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
         A.pytorch.transforms.ToTensorV2(),
+        # A.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
     ], additional_targets=additional_targets)
 
     if which == 'correspondence':

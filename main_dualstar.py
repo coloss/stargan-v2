@@ -126,11 +126,15 @@ if __name__ == '__main__':
     parser.add_argument('--lambda_d_fake', type=float, default=1.0,
                     help='Weight for discriminator fake loss')
     parser.add_argument('--lambda_vgg', type=float, default=0.0,
-                        help='Weight for cyclic consistency loss')
+                        help='Weight for vgg perceptual losses')
     parser.add_argument('--vgg_loss_layers', type=list, default=[4, 9],
                         help='VGG layers to use for perceptual loss.')
     parser.add_argument('--lambda_vgg_layers', type=list, default=[0.5, 1],
-                        help='Weights for previously specified VGG layers')
+                        help='Weights for VGG layers specified specified with --vgg_loss_layers')
+    parser.add_argument('--lambda_face_rec', type=float, default=0.0,
+                        help='Weight for face recognition loss')
+    parser.add_argument('--lambda_emo_rec', type=float, default=0.0,
+                        help='Weight for emotion recognition loss')
     parser.add_argument('--lambda_sty', type=float, default=1,
                         help='Weight for style reconstruction loss')
     parser.add_argument('--lambda_ds', type=float, default=1,
