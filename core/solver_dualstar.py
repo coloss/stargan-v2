@@ -105,6 +105,8 @@ class SolverDualStar(SolverBase):
                 name += self.args.metric_emo_rec
             if self.args.lambda_emo_rec != 1.:
                 name += f"-{self.args.lambda_emo_rec:0.2f}"
+        if self.args.style_dim != 64:
+            name += f"_st{self.args.style_dim}d"
         return name
 
     def _configure_optimizers(self):

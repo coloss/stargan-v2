@@ -37,9 +37,16 @@ class Solver(SolverBase):
 
     def _create_experiment_name(self):
         name = "StarGAN"
+        if self.args.arch_type != "star":
+            if self.args.arch_type[:len('star')] == 'star':
+                name += "_" + self.args.arch_type[len('star'):]
+            else:
+                name += "_" + self.args.arch_type
         if self.args.latent_dim == 0:
             name += "_noZ"
         name += "_" + "-".join(self.args.domain_names)
+        if self.args.style_dim != 64:
+            name += f"_st{self.args.style_dim}d"
         return name
 
     def _configure_optimizers(self):
