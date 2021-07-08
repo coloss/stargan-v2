@@ -95,6 +95,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # model arguments
+    parser.add_argument('--arch_type', type=str, default='star', choices=['star', 'starskip', 'starskipcat'],
+                        help='Architecture type')
     parser.add_argument('--img_size', type=int, default=256,
                         help='Image resolution')
     parser.add_argument('--num_domains', type=int, default=2,

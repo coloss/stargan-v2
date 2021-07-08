@@ -134,10 +134,15 @@ class HighPass(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, img_size=256, style_dim=64, max_conv_dim=512, w_hpf=1):
+    def __init__(self, img_size=256, style_dim=64, max_conv_dim=512, w_hpf=1,
+                 skip_connections=False, 
+                 skip_concat=False):
         super().__init__()
         dim_in = 2**14 // img_size
         self.img_size = img_size
+        self.num_bottleneck_layers = 2
+        self.skip_connections = skip_connections
+        self.skip_concat = skip_concat
         self.from_rgb = nn.Conv2d(3, dim_in, 3, 1, 1)
         self.encode = nn.ModuleList()
         self.decode = nn.ModuleList()
@@ -154,13 +159,17 @@ class Generator(nn.Module):
             dim_out = min(dim_in*2, max_conv_dim)
             self.encode.append(
                 ResBlk(dim_in, dim_out, normalize=True, downsample=True))
+            if self.skip_concat and self.skip_connections:
+                dim_out_factor = 2
+            else:
+                dim_out_factor = 1
             self.decode.insert(
-                0, AdainResBlk(dim_out, dim_in, style_dim,
+                0, AdainResBlk(dim_out_factor * dim_out, dim_in, style_dim,
                                w_hpf=w_hpf, upsample=True))  # stack-like
             dim_in = dim_out
 
         # bottleneck blocks
-        for _ in range(2):
+        for _ in range(self.num_bottleneck_layers):
             self.encode.append(
                 ResBlk(dim_out, dim_out, normalize=True))
             self.decode.insert(
@@ -174,16 +183,36 @@ class Generator(nn.Module):
     def forward(self, x, s, masks=None):
         x = self.from_rgb(x)
         cache = {}
+
+        if self.skip_connections:
+            to_skip = []
+
         for block in self.encode:
             if (masks is not None) and (x.size(2) in [32, 64, 128]):
                 cache[x.size(2)] = x
             x = block(x)
-        for block in self.decode:
+            if self.skip_connections:
+                to_skip += [x]
+
+        if self.skip_connections:
+            # no skips in bottleneck layers
+            for i in range(self.num_bottleneck_layers):
+                to_skip.pop(-1)
+
+        for bi, block in enumerate(self.decode):
+            if self.skip_connections and bi >= self.num_bottleneck_layers:
+                skip = to_skip.pop(-1)
+                if not self.skip_concat:
+                    x = x + skip
+                else:
+                    x = torch.cat([x, skip], dim=1)
             x = block(x, s)
             if (masks is not None) and (x.size(2) in [32, 64, 128]):
                 mask = masks[0] if x.size(2) in [32] else masks[1]
                 mask = F.interpolate(mask, size=x.size(2), mode='bilinear')
                 x = x + self.hpf(mask * cache[x.size(2)])
+        if self.skip_connections and len(to_skip) != 0:
+            raise RuntimeError(f"{len(to_skip)} skip value(s) got left behind unused. This should not happen.")
         return self.to_rgb(x)
 
 
@@ -408,8 +437,23 @@ class PatchMorphGANDiscriminator(nn.Module):
         return patches
 
 
+def build_generator(args):
+    if args.arch_type == "star":
+        generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf,
+                                              skip_connections=False, skip_concat=False))
+    elif args.arch_type == "starskip":
+        generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf,
+                                              skip_connections=True, skip_concat=False))
+    elif args.arch_type == "starskipcat":
+        generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf,
+                                              skip_connections=True, skip_concat=True))
+    else:
+        raise ValueError(f"Invalid arch_type: '{args.arch_type}'")
+    return generator
+
+
 def build_model_stargan(args):
-    generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf))
+    generator = build_generator(args)
     if args.latent_dim > 0:
         mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, args.num_domains, args.hidden_dim))
     else:
@@ -439,10 +483,8 @@ def build_model_stargan(args):
 
     return nets, nets_ema
 
-
-
 def build_model_dualstargan(args):
-    generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf))
+    generator = build_generator(args)
     # mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, args.num_domains, args.hidden_dim))
     style_encoder = nn.DataParallel(StyleEncoder(args.img_size, args.style_dim, args.num_domains))
     discriminator = nn.DataParallel(Discriminator(args.img_size, args.num_domains))
@@ -469,7 +511,7 @@ def build_model_dualstargan(args):
 
 
 def build_model_MorphGAN(args):
-    generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf))
+    generator = build_generator(args)
     # mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, 1, args.hidden_dim))
     mapping_network = None
     style_encoder = nn.DataParallel(MorphGANStyleEncoder(args.img_size, args.style_dim, 1))

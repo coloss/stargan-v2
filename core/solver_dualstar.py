@@ -78,6 +78,11 @@ class SolverDualStar(SolverBase):
 
     def _create_experiment_name(self):
         name = "DualStarGAN"
+        if self.args.archtype != "star":
+            if self.args.archtype[:len('star')] == 'star':
+                name += "_" + self.args.archtype[len('star'):]
+            else:
+                name += "_" + self.args.archtype
         name += "_" + "-".join(self.args.domain_names)
         if self.args.direction != 'bi':
             name += "_" + self.args.direction
