@@ -54,7 +54,7 @@ class SolverDualStar(SolverBase):
             self.loss_nets['facerec_loss'] = None
 
         if self.args.lambda_emo_rec != 0:
-            self.loss_nets['emorec_loss'] = EmoNetLoss(unnormalize=True)
+            self.loss_nets['emorec_loss'] = EmoNetLoss(unnormalize=True, feat_metric=self.args.metric_emo_rec)
         else:
             self.loss_nets['emorec_loss'] = None
         return build_model_dualstargan(self.args)
@@ -96,6 +96,8 @@ class SolverDualStar(SolverBase):
 
         if self.args.lambda_emo_rec != 0:
             name += "_ER"
+            if self.args.metric_emo_rec is not None:
+                name += self.args.metric_emo_rec
             if self.args.lambda_emo_rec != 1.:
                 name += f"-{self.args.lambda_emo_rec:0.2f}"
         return name

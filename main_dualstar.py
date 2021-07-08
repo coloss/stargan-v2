@@ -135,6 +135,8 @@ if __name__ == '__main__':
                         help='Weight for face recognition loss')
     parser.add_argument('--lambda_emo_rec', type=float, default=0.0,
                         help='Weight for emotion recognition loss')
+    parser.add_argument('--metric_emo_rec', type=str, default='l1', choices=['l1', 'l2', 'cos'] ,
+                        help='Weight for emotion recognition loss')
     parser.add_argument('--lambda_sty', type=float, default=1,
                         help='Weight for style reconstruction loss')
     parser.add_argument('--lambda_ds', type=float, default=1,

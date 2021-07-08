@@ -38,7 +38,7 @@ def get_emonet(device=None, load_pretrained=True):
 class EmoNetLoss(torch.nn.Module):
 # class EmoNetLoss(object):
 
-    def __init__(self, device=None, emonet=None, unnormalize=False):
+    def __init__(self, device=None, emonet=None, unnormalize=False, feat_metric='l1'):
         super().__init__()
         self.emonet = emonet or get_emonet(device).eval()
         self.emonet.requires_grad_(False)
@@ -46,7 +46,8 @@ class EmoNetLoss(torch.nn.Module):
         # self.emonet = self.emonet.requires_grad_(False)
         # self.transforms = Resize((256, 256))
         self.size = (256, 256)
-        self.emo_feat_loss = F.l1_loss
+
+        self.feat_metric = feat_metric
         self.valence_loss = F.l1_loss
         self.arousal_loss = F.l1_loss
         # self.expression_loss = F.kl_div
@@ -93,6 +94,15 @@ class EmoNetLoss(torch.nn.Module):
         # stargan outputs images in range (-1,1), emonet expects them in (0,1)
         img = (img + 1) / 2
         return img
+
+    def emo_feat_loss(self, x, y):
+        if self.feat_metric == 'l1':
+            return F.l1_loss(x, y)
+        elif self.feat_metric == 'l2':
+            return F.mse_loss(x, y)
+        elif self.feat_metric == 'cos':
+            return (1. - F.cosine_similarity(x, y, dim=1)).mean()
+        raise ValueError(f"Invalid feat_metric: '{self.feat_metric}'")
 
     def compute_loss(self, input_images, output_images):
         # input_emotion = None
