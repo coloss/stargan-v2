@@ -170,12 +170,16 @@ class ImageFolder2(ImageFolder):
 
 class MultiFolderCorrespondenceImageDataset(data.Dataset):
 
-    def __init__(self, root, subfolders, transform=None, recursive=True, reference=False):
+    def __init__(self, root, subfolders, transform=None, recursive=True, reference=False, domains_to_split=None):
         super().__init__()
         self.transform = transform
         self.samples = {}
         self.labels = {}
+        self.sample_labels = {}
         self.targets = []
+        self.domains_to_split = domains_to_split
+        self.subfolders = subfolders
+
         from torchvision.datasets import folder as df
 
         for i, folder in enumerate(subfolders):
@@ -189,6 +193,7 @@ class MultiFolderCorrespondenceImageDataset(data.Dataset):
                     # samples_in_folder += sorted(list(Path(root).glob(f"{folder}/*" + ext)))
                     samples_in_folder += sorted(list(glob.glob(str(Path(root) / (f"{folder}/*" + ext)), recursive=False)))
             self.samples[folder] = samples_in_folder
+            self.sample_labels[folder] = [i] * len(samples_in_folder)
 
         N = len(self.samples[folder])
 
@@ -201,6 +206,40 @@ class MultiFolderCorrespondenceImageDataset(data.Dataset):
                 raise RuntimeError("All domains need to be in perfect correspondence")
         self.N = N
         self.loader = df.default_loader
+
+        new_labels = []
+        low_index = 999999
+        label_idx = 0
+        for i, di in enumerate(domains_to_split):
+            domain_name = subfolders[di]
+            domain_samples = self.samples[domain_name]
+            subdomains = sorted(list(set([Path(self.samples[domain_name][i]).parents[0].name for i in range(N)])))
+            # num_subdomains =
+            print(f"Spliting domain '{domain_name}' into subdomains: {' '.join(list(subdomains))}")
+
+            for j in range(len(subdomains)):
+                new_labels += [low_index]
+                for k in range(len(self.samples[domain_name])):
+                    fname = self.samples[domain_name][k]
+                    if subdomains[j] == Path(fname).parent.name:
+                        self.sample_labels[domain_name][k] = low_index
+                low_index -= 1
+
+        old_labels = [i for i in range(len(subfolders)) if i not in domains_to_split]
+
+        new_labels = sorted(old_labels + new_labels)
+        final_labels = list(range(len(new_labels)))
+        self.new2final = dict(zip(new_labels, final_labels))
+
+        for domain_name, label_list in self.sample_labels.items():
+            for li, label in enumerate(label_list):
+                self.sample_labels[domain_name][li] = self.new2final[label]
+
+    def num_initial_domains(self):
+        return len(self.subfolders)
+
+    def num_final_domains(self):
+        return len(self.new2final)
 
     def __len__(self):
         return self.N
@@ -220,19 +259,20 @@ class MultiFolderCorrespondenceImageDataset(data.Dataset):
             # if self.transform is not None:
             #     im = self.transform(im)
             sample_d[domain] = im
-            label += [self.labels[domain]]
+            # label += [self.labels[domain]]
+            label += [self.sample_labels[domain][index]]
         if self.transform is not None:
             sample_d = self.transform(image=im, **sample_d)
         sample = []
         for domain in self.samples.keys():
             sample += [sample_d[domain]]
-
         return sample, label
 
 
 def get_train_loader(root, which='source', img_size=256,
                      batch_size=8, prob=0.5, num_workers=4,
-                     domain_names=None):
+                     domain_names=None,
+                     domains_to_split=None):
     print('Preparing DataLoader to fetch %s images '
           'during the training phase...' % which)
 
@@ -279,7 +319,8 @@ def get_train_loader(root, which='source', img_size=256,
         else:
             dataset = MultiFolderImageDataset(root, domain_names, transform, recursive=True, reference=True)
     elif which == 'correspondence':
-        dataset = MultiFolderCorrespondenceImageDataset(root, domain_names, transform, recursive=True)
+        dataset = MultiFolderCorrespondenceImageDataset(root, domain_names, transform, recursive=True,
+                                             domains_to_split=domains_to_split)
     else:
         raise NotImplementedError
     print(f"Dataset has {len(dataset)} samples")
@@ -336,7 +377,8 @@ def get_eval_loader(root, img_size=256, batch_size=32,
 
 def get_test_loader(root, img_size=256, batch_size=32,
                     shuffle=True, num_workers=4,
-                    domain_names=None, which=None):
+                    domain_names=None, which=None,
+                    domains_to_split=None):
     print('Preparing DataLoader for the generation phase...')
     # transform = transforms.Compose([
     #     transforms.Resize([img_size, img_size]),
@@ -353,7 +395,8 @@ def get_test_loader(root, img_size=256, batch_size=32,
     ], additional_targets=additional_targets)
 
     if which == 'correspondence':
-        dataset = MultiFolderCorrespondenceImageDataset(root, domain_names, transform, recursive=True)
+        dataset = MultiFolderCorrespondenceImageDataset(root, domain_names, transform, recursive=True,
+                                                        domains_to_split=domains_to_split)
     else:
         if domain_names is None or len(domain_names) == 0:
             dataset = ImageFolder2(root, transform)

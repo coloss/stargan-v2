@@ -34,7 +34,12 @@ def main(args):
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
 
-    solver = SolverDualStar(args)
+    domains_to_split = []
+    if args.split_x_domain:
+        domains_to_split += [0]
+    if args.split_y_domain:
+        domains_to_split += [1]
+
 
     if args.mode == 'train':
         if not hasattr(args, 'domain_names') or len(args.domain_names) == 0:
@@ -46,6 +51,7 @@ def main(args):
         loaders = Munch(src=get_train_loader(root= args.train_img_dir,
                                              which='correspondence',
                                              domain_names=args.domain_names,
+                                             domains_to_split=domains_to_split,
                                              img_size=args.img_size,
                                              batch_size=args.batch_size,
                                              prob=args.randcrop_prob,
@@ -54,10 +60,13 @@ def main(args):
                         val=get_test_loader(root=args.val_img_dir,
                                             which='correspondence',
                                             domain_names=args.domain_names,
+                                             domains_to_split=domains_to_split,
                                             img_size=args.img_size,
                                             batch_size=args.val_batch_size,
                                             shuffle=True,
                                             num_workers=args.num_workers))
+        args.num_domains = loaders.src.dataset.num_final_domains()
+        solver = SolverDualStar(args)
         solver.fit(loaders)
     elif args.mode == 'sample':
         assert len(subdirs(args.src_dir)) == args.num_domains
@@ -72,17 +81,27 @@ def main(args):
                                             batch_size=args.val_batch_size,
                                             shuffle=False,
                                             num_workers=args.num_workers))
+        args.num_domains = loaders.src.dataset.num_final_domains()
+        solver = SolverDualStar(args)
         solver.sample(loaders)
     elif args.mode == 'eval':
+        if args.split_x_domain or args.split_y_domain:
+            raise NotImplementedError("Splitting domains and eval options had not been tested and "
+                                      "likely break due to the number of domains expected")
+        solver = SolverDualStar(args)
         solver.evaluate()
     elif args.mode == 'paired_images':
         loaders = Munch(val=get_test_loader(root=args.val_img_dir,
                                             which='correspondence',
                                             domain_names=args.domain_names,
+                                            domains_to_split=domains_to_split,
                                             img_size=args.img_size,
                                             batch_size=args.val_batch_size,
                                             shuffle=True,
                                             num_workers=args.num_workers))
+        args.num_domains = loaders.val.dataset.num_final_domains()
+
+        solver = SolverDualStar(args)
         solver.test_paired_images(loaders)
     elif args.mode == 'align':
         from core.wing import align_faces
@@ -103,6 +122,10 @@ if __name__ == '__main__':
                         help='Number of domains')
     parser.add_argument('--domain_names', nargs="*", default=[],
                         help='Specify domain subfolder by name instead')
+    parser.add_argument('--split_x_domain', action='store_true', default=False,
+                        help='Split the fist domain into multiple ones')
+    parser.add_argument('--split_y_domain', action='store_true', default=False,
+                        help='Split the second domain into multiple ones')
     parser.add_argument('--latent_dim', type=int, default=0,
                         help='Latent vector dimension')
     parser.add_argument('--hidden_dim', type=int, default=0,
@@ -110,7 +133,8 @@ if __name__ == '__main__':
     parser.add_argument('--style_dim', type=int, default=64,
                         help='Style code dimension')
     parser.add_argument('--direction', type=str, default='bi',
-                        help='Translation from one domain to another or bidirectional. Accepted values: "bi", "x2y","y2x" ')
+                        help='Translation from one domain to another or '
+                             'bidirectional. Accepted values: "bi", "x2y","y2x" ')
 
     # weight for objective functions
     parser.add_argument('--lambda_reg', type=float, default=1,
