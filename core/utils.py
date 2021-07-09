@@ -205,6 +205,15 @@ def debug_image_paired(nets, args, inputs, step, outdir = None):
         translate_and_reconstruct(nets, args, x_all_src, labels_all_src, x_all_ref, labels_all_ref, filename)
         image_path_list[Path(filename).stem[7:]] = filename
 
+        # now shuffle the reference images. The output images will tell us how well the network generalizes to unpaired input
+        shuffled_dim = torch.randperm(x_all_ref.shape[0])
+        x_all_ref_shuffled = x_all_ref[shuffled_dim, ...]
+        labels_all_ref_shuffled = labels_all_ref[shuffled_dim, ...]
+        filename = ospj(outdir, '%06d_cycle_consistency_unpaired_xyx.jpg' % (step))
+        translate_and_reconstruct(nets, args, x_all_src, labels_all_src, x_all_ref_shuffled, labels_all_ref_shuffled, filename)
+        image_path_list[Path(filename).stem[7:]] = filename
+
+
     # other way
     if args.direction in ['bi', 'y2x']:
         x_all_src = torch.cat([y_src, y_ref, ], dim=0)
@@ -214,6 +223,14 @@ def debug_image_paired(nets, args, inputs, step, outdir = None):
 
         filename = ospj(outdir, '%06d_cycle_consistency_yxy.jpg' % (step))
         translate_and_reconstruct(nets, args, x_all_src, labels_all_src, x_all_ref, labels_all_ref, filename)
+        image_path_list[Path(filename).stem[7:]] = filename
+
+        # now shuffle the reference images. The output images will tell us how well the network generalizes to unpaired input
+        shuffled_dim = torch.randperm(x_all_ref.shape[0])
+        x_all_ref_shuffled = x_all_ref[shuffled_dim, ...]
+        labels_all_ref_shuffled = labels_all_ref[shuffled_dim, ...]
+        filename = ospj(outdir, '%06d_cycle_consistency_unpaired_yxy.jpg' % (step))
+        translate_and_reconstruct(nets, args, x_all_src, labels_all_src, x_all_ref_shuffled, labels_all_ref_shuffled, filename)
         image_path_list[Path(filename).stem[7:]] = filename
 
 
