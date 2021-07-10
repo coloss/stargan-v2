@@ -85,11 +85,11 @@ class SolverDualStar(SolverBase):
                 name += "_" + self.args.arch_type
         name += "_" + "-".join(self.args.domain_names)
         if self.args.split_x_domain and self.args.split_y_domain:
-            name += "xy-split"
+            name += "_xy-split"
         elif self.args.split_x_domain:
-            name += "x-split"
+            name += "_x-split"
         elif self.args.split_y_domain:
-            name += "y-split"
+            name += "_y-split"
 
         if self.args.direction != 'bi':
             name += "_" + self.args.direction

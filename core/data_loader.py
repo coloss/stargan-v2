@@ -266,11 +266,21 @@ class MultiFolderCorrespondenceImageDataset(data.Dataset):
         sample = []
         for domain in self.samples.keys():
             sample += [sample_d[domain]]
+
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # for i, im in enumerate(sample):
+        #     plt.subplot(1,2,i+1)
+        #     plt.imshow(sample[i].cpu().detach().numpy().transpose([1,2,0]))
+        #     plt.title(f"Label: {label[i]}")
+        # plt.show()
+
         return sample, label
 
 
 def get_train_loader(root, which='source', img_size=256,
                      batch_size=8, prob=0.5, num_workers=4,
+                     shuffle=True,
                      domain_names=None,
                      domains_to_split=None):
     print('Preparing DataLoader to fetch %s images '
@@ -328,9 +338,13 @@ def get_train_loader(root, which='source', img_size=256,
         sampler = None
     else:
         sampler = _make_balanced_sampler(dataset.targets)
+        if shuffle:
+            print("A sample is being used for the data loader. Ignoring shuffle=True")
+        shuffle = False
     return data.DataLoader(dataset=dataset,
                            batch_size=batch_size,
                            sampler=sampler,
+                           shuffle=shuffle,
                            num_workers=num_workers,
                            pin_memory=True,
                            drop_last=True)
