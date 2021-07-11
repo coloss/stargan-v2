@@ -104,6 +104,22 @@ def main(args):
 
         solver = SolverDualStar(args)
         solver.test_paired_images(loaders)
+    elif args.mode == 'paired_test':
+        loaders = Munch(val=get_test_loader(root=args.val_img_dir,
+                                            which='correspondence',
+                                            domain_names=args.domain_names,
+                                            domains_to_split=domains_to_split,
+                                            img_size=args.img_size,
+                                            # batch_size=args.val_batch_size,
+                                            batch_size=1,
+                                            shuffle=False,
+                                            num_workers=args.num_workers),
+                                            )
+        args.num_domains = loaders.val.dataset.num_final_domains()
+
+        solver = SolverDualStar(args)
+        solver.test_on_validation_set(loaders)
+
     elif args.mode == 'align':
         from core.wing import align_faces
         align_faces(args, args.inp_dir, args.out_dir)
@@ -199,7 +215,7 @@ if __name__ == '__main__':
 
     # misc
     parser.add_argument('--mode', type=str, required=True,
-                        choices=['train', 'sample', 'eval', 'align', 'paired_images'],
+                        choices=['train', 'sample', 'eval', 'align', 'paired_images', 'paired_test'],
                         help='This argument is used in solver')
     parser.add_argument('--num_workers', type=int, default=4,
                         help='Number of workers used in DataLoader')

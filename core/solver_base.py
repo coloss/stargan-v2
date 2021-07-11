@@ -177,6 +177,261 @@ class SolverBase(nn.Module):
                 self.logger.log_metrics(image_dict)
                 print("Image saved to wandb")
 
+    @torch.no_grad()
+    def test_on_validation_set(self, loaders):
+        from core.utils import translate_and_reconstruct_no_image
+        from metrics.EmoNetLoss import EmoNetLoss
+        from metrics.FRNet import VGGFace2Loss
+        from metrics.vgg import VGG19Loss
+
+        self._load_checkpoint()
+        # fetcher_val = InputFetcher(loaders.val, None, self.args.latent_dim, 'val')
+        # out_path = Path(self.args.sample_dir) / "test"
+        # out_path.mkdir(exist_ok=True, parents=True)
+        print("Testing on validation set ")
+
+        # fetcher_val = InputFetcher(loaders.val, None, self.args.latent_dim, 'val')
+        # inputs= next(fetcher_val)
+
+        pixel_loss_x2y = []
+        vgg_loss_x2y = []
+        fr_loss_x2y = []
+        emonet_f1_loss_x2y = []
+        emonet_f2_loss_x2y = []
+        emonet_v_loss_x2y = []
+        emonet_a_loss_x2y = []
+        emonet_exp_loss_x2y = []
+
+        pixel_loss_x2y2x = []
+        vgg_loss_x2y2x = []
+        fr_loss_x2y2x = []
+        emonet_f1_loss_x2y2x = []
+        emonet_f2_loss_x2y2x = []
+        emonet_v_loss_x2y2x = []
+        emonet_a_loss_x2y2x = []
+        emonet_exp_loss_x2y2x = []
+
+        pixel_loss_y2x = []
+        vgg_loss_y2x = []
+        fr_loss_y2x = []
+        emonet_f1_loss_y2x = []
+        emonet_f2_loss_y2x = []
+        emonet_v_loss_y2x = []
+        emonet_a_loss_y2x = []
+        emonet_exp_loss_y2x = []
+
+        pixel_loss_y2x2y = []
+        vgg_loss_y2x2y = []
+        fr_loss_y2x2y = []
+        emonet_f1_loss_y2x2y = []
+        emonet_f2_loss_y2x2y = []
+        emonet_v_loss_y2x2y = []
+        emonet_a_loss_y2x2y = []
+        emonet_exp_loss_y2x2y = []
+
+        vgg_loss = VGG19Loss(dict(zip(self.args.vgg_loss_layers, self.args.lambda_vgg_layers)))
+        facerec_loss = VGGFace2Loss(metric='cos', unnormalize=True)
+        emorec_loss = EmoNetLoss(unnormalize=True, feat_metric=self.args.metric_emo_rec)
+
+        vgg_loss.cuda()
+        facerec_loss.cuda()
+        emorec_loss.cuda()
+
+        fetcher_val = InputFetcher(loaders.val, None, self.args.latent_dim, 'val')
+
+        from tqdm import auto
+
+        for bi in auto.tqdm(range(len(loaders.val) // loaders.val.batch_size)):
+            if bi == 10:
+                break
+            inputs = next(fetcher_val)
+            x_src_, y_src_ = inputs.x_src
+            x_ref_, y_ref_ = inputs.x_ref
+
+            x_src_label, y_src_label = inputs.y_src
+            x_ref_label, y_ref_label = inputs.y_ref
+
+            # 1 ) one way
+            if self.args.direction in ['bi', 'x2y']:
+                x_all_src = torch.cat([x_src_, x_ref_, ], dim=0)
+                x_all_ref = torch.cat([y_src_, y_ref_, ], dim=0)
+                labels_all_src = torch.cat([x_src_label, x_ref_label, ], dim=0)
+                labels_all_ref = torch.cat([y_src_label, y_ref_label, ], dim=0)
+
+                # translate and reconstruct (reference-guided)
+                x_src, x_ref, x_fake, x_rec = translate_and_reconstruct_no_image(
+                    self.nets, self.args, x_all_src, labels_all_src, x_all_ref, labels_all_ref)
+
+                # SUPERVISED
+                # photometric
+                half_cycle_x = torch.mean(torch.abs(x_fake - x_ref))
+                pixel_loss_x2y += [half_cycle_x.item()]
+
+                # vgg feature loss
+                if vgg_loss is not None:
+                    half_cycle_x_vgg, _ = vgg_loss(x_fake, x_ref)
+                    half_cycle_vgg = half_cycle_x_vgg
+                    vgg_loss_x2y += [half_cycle_x_vgg.item()]
+
+                # facerec loss
+                if facerec_loss is not None:
+                    half_cycle_x_face_rec = facerec_loss(x_fake, x_ref)
+                    half_cycle_face_rec = half_cycle_x_face_rec
+                    fr_loss_x2y += [half_cycle_face_rec.item()]
+
+                # emonet loss
+                if emorec_loss is not None:
+                    emo_feat_loss_1, emo_feat_loss_2, valence_loss, arousal_loss, expression_loss = \
+                        emorec_loss.compute_loss(x_fake, x_ref)
+                    emonet_f1_loss_x2y += [emo_feat_loss_1.item()]
+                    emonet_f2_loss_x2y += [emo_feat_loss_2.item()]
+                    emonet_v_loss_x2y += [valence_loss.item()]
+                    emonet_a_loss_x2y += [arousal_loss.item()]
+                    emonet_exp_loss_x2y += [expression_loss.item()]
+
+                # CYCLE
+                # photometric
+                half_cycle_x = torch.mean(torch.abs(x_src - x_rec))
+                pixel_loss_x2y2x += [half_cycle_x.item()]
+
+                # vgg feature loss
+                if vgg_loss is not None:
+                    half_cycle_x_vgg, _ = vgg_loss(x_src, x_rec)
+                    half_cycle_vgg = half_cycle_x_vgg
+                    vgg_loss_x2y2x += [half_cycle_x_vgg.item()]
+
+                # facerec loss
+                if facerec_loss is not None:
+                    half_cycle_x_face_rec = facerec_loss(x_src, x_rec)
+                    half_cycle_face_rec = half_cycle_x_face_rec
+                    fr_loss_x2y2x += [half_cycle_face_rec.item()]
+
+                # emonet loss
+                if emorec_loss is not None:
+                    emo_feat_loss_1, emo_feat_loss_2, valence_loss, arousal_loss, expression_loss = \
+                        emorec_loss.compute_loss(x_src, x_rec)
+
+                    emonet_f1_loss_x2y2x += [emo_feat_loss_1.item()]
+                    emonet_f2_loss_x2y2x += [emo_feat_loss_2.item()]
+                    emonet_v_loss_x2y2x += [valence_loss.item()]
+                    emonet_a_loss_x2y2x += [arousal_loss.item()]
+                    emonet_exp_loss_x2y2x += [expression_loss.item()]
+
+
+            # 2) other way
+            if self.args.direction in ['bi', 'y2x']:
+                x_all_src = torch.cat([y_src_, y_ref_, ], dim=0)
+                x_all_ref = torch.cat([x_src_, x_ref_, ], dim=0)
+                labels_all_src = torch.cat([y_src_label, y_ref_label, ], dim=0)
+                labels_all_ref = torch.cat([x_src_label, x_ref_label, ], dim=0)
+
+                # translate and reconstruct (reference-guided)
+                x_src, x_ref, x_fake, x_rec = translate_and_reconstruct_no_image(
+                    self.nets, self.args, x_all_src, labels_all_src, x_all_ref, labels_all_ref)
+
+                # SUPERVISED
+                # photometric
+                half_cycle_y = torch.mean(torch.abs(x_fake - x_ref))
+                pixel_loss_y2x += [half_cycle_y.item()]
+
+                # vgg feature loss
+                if vgg_loss is not None:
+                    half_cycle_y_vgg, _ = vgg_loss(x_fake, x_ref)
+                    half_cycle_vgg = half_cycle_y_vgg
+                    vgg_loss_y2x += [half_cycle_y_vgg.item()]
+
+                # facerec loss
+                if facerec_loss is not None:
+                    half_cycle_y_face_rec = facerec_loss(x_fake, x_ref)
+                    half_cycle_face_rec = half_cycle_y_face_rec
+                    fr_loss_y2x += [half_cycle_face_rec.item()]
+
+                # emonet loss
+                if emorec_loss is not None:
+                    emo_feat_loss_1, emo_feat_loss_2, valence_loss, arousal_loss, expression_loss = \
+                        emorec_loss.compute_loss(x_fake, x_ref)
+
+                    emonet_f1_loss_y2x += [emo_feat_loss_1.item()]
+                    emonet_f2_loss_y2x += [emo_feat_loss_2.item()]
+                    emonet_v_loss_y2x += [valence_loss.item()]
+                    emonet_a_loss_y2x += [arousal_loss.item()]
+                    emonet_exp_loss_y2x += [expression_loss.item()]
+
+                # CYCLE
+                # photometric
+                half_cycle_y = torch.mean(torch.abs(x_src - x_rec))
+                pixel_loss_y2x2y += [half_cycle_y.item()]
+                # vgg feature loss
+                if vgg_loss is not None:
+                    half_cycle_y_vgg, _ = vgg_loss(x_src, x_rec)
+                    half_cycle_vgg = half_cycle_y_vgg
+                    vgg_loss_y2x2y += [half_cycle_y_vgg.item()]
+
+                # facerec loss
+                if facerec_loss is not None:
+                    half_cycle_y_face_rec = facerec_loss(x_src, x_rec)
+                    half_cycle_face_rec = half_cycle_y_face_rec
+                    fr_loss_y2x2y += [half_cycle_face_rec.item()]
+
+                # emonet loss
+                if emorec_loss is not None:
+                    emo_feat_loss_1, emo_feat_loss_2, valence_loss, arousal_loss, expression_loss = \
+                        emorec_loss.compute_loss(x_src, x_rec)
+
+                    emonet_f1_loss_y2x2y += [emo_feat_loss_1.item()]
+                    emonet_f2_loss_y2x2y += [emo_feat_loss_2.item()]
+                    emonet_v_loss_y2x2y += [valence_loss.item()]
+                    emonet_a_loss_y2x2y += [arousal_loss.item()]
+                    emonet_exp_loss_y2x2y += [expression_loss.item()]
+
+        if self.args.direction in ['bi', 'x2y']:
+            names_x2y = ["pixel_loss_x2y" ,"vgg_loss_x2y", "fr_loss_x2y", "emonet_f1_loss_x2y", "emonet_f2_loss_x2y", "emonet_v_loss_x2y", "emonet_a_loss_x2y", "emonet_exp_loss_x2y"]
+            losses_x2y = [pixel_loss_x2y ,vgg_loss_x2y, fr_loss_x2y, emonet_f1_loss_x2y, emonet_f2_loss_x2y, emonet_v_loss_x2y, emonet_a_loss_x2y, emonet_exp_loss_x2y]
+            n2l_x2y = dict(zip(names_x2y, losses_x2y))
+            n2l_x2y_mean = {}
+            for loss, value in n2l_x2y.items():
+                n2l_x2y[loss] = np.array(value)
+                n2l_x2y_mean[loss] = n2l_x2y[loss].mean()
+            self.logger.log_metrics({f"test/{key}": value for key, value in n2l_x2y_mean.items()})
+            self.logger.log_metrics({f"test/{key}_items": value for key, value in n2l_x2y.items()})
+
+            names_x2y2x = ["pixel_loss_x2y2x" , "vgg_loss_x2y2x" , "fr_loss_x2y2x", "emonet_f1_loss_x2y2x", "emonet_f2_loss_x2y2x", "emonet_v_loss_x2y2x" , "emonet_a_loss_x2y2x", "emonet_exp_loss_x2y2x"]
+            losses_x2y2x = [pixel_loss_x2y2x , vgg_loss_x2y2x , fr_loss_x2y2x, emonet_f1_loss_x2y2x, emonet_f2_loss_x2y2x, emonet_v_loss_x2y2x , emonet_a_loss_x2y2x, emonet_exp_loss_x2y2x]
+            n2l_x2y2x = dict(zip(names_x2y2x, losses_x2y2x))
+            n2l_x2y2x_mean = {}
+
+            for loss, value in n2l_x2y2x.items():
+                n2l_x2y2x[loss] = np.array(value)
+                n2l_x2y2x_mean[loss] = n2l_x2y2x[loss].mean()
+            self.logger.log_metrics({f"test/{key}": value for key, value in n2l_x2y_mean.items()})
+            self.logger.log_metrics({f"test/{key}_items": value for key, value in n2l_x2y2x.items()})
+
+
+        if self.args.direction in ['bi', 'y2x']:
+            names_y2x = ["pixel_loss_y2x" ,"vgg_loss_y2x", "fr_loss_y2x", "emonet_f1_loss_y2x", "emonet_f2_loss_y2x", "emonet_v_loss_y2x", "emonet_a_loss_y2x", "emonet_exp_loss_y2x"]
+            losses_y2x = [pixel_loss_y2x ,vgg_loss_y2x, fr_loss_y2x, emonet_f1_loss_y2x, emonet_f2_loss_y2x, emonet_v_loss_y2x, emonet_a_loss_y2x, emonet_exp_loss_y2x]
+            n2l_y2x = dict(zip(names_y2x, losses_y2x))
+            n2l_y2x_mean = {}
+            for loss, value in n2l_y2x.items():
+                n2l_y2x[loss] = np.array(value)
+                n2l_y2x_mean[loss] = n2l_y2x[loss].mean()
+            self.logger.log_metrics({f"test/{key}": value for key, value in n2l_y2x_mean.items()})
+            self.logger.log_metrics({f"test/{key}_items": value for key, value in n2l_y2x.items()})
+
+            names_y2x2y = ["pixel_loss_y2x2y" , "vgg_loss_y2x2y" , "fr_loss_y2x2y", "emonet_f1_loss_y2x2y", "emonet_f2_loss_y2x2y", "emonet_v_loss_y2x2y" , "emonet_a_loss_y2x2y", "emonet_exp_loss_y2x2y"]
+            losses_y2x2y = [pixel_loss_y2x2y , vgg_loss_y2x2y , fr_loss_y2x2y, emonet_f1_loss_y2x2y, emonet_f2_loss_y2x2y, emonet_v_loss_y2x2y , emonet_a_loss_y2x2y, emonet_exp_loss_y2x2y]
+            n2l_y2x2y =  dict(zip(names_y2x2y, losses_y2x2y))
+            n2l_y2x2y_mean = {}
+            for loss, value in n2l_y2x2y.items():
+                n2l_y2x2y[loss] = np.array(value)
+                n2l_y2x2y_mean[loss] = n2l_y2x2y[loss].mean()
+            self.logger.log_metrics({f"test/{key}": value for key, value in n2l_y2x2y_mean.items()})
+            self.logger.log_metrics({f"test/{key}_items": value for key, value in n2l_y2x2y.items()})
+
+
+
+
+
     def fit(self, loaders):
         args = self.args
         nets = self.nets

@@ -61,6 +61,18 @@ def save_image(x, ncol, filename):
 
 
 @torch.no_grad()
+def translate_and_reconstruct_no_image(nets, args, x_src, y_src, x_ref, y_ref):
+    N, C, H, W = x_src.size()
+    s_ref = nets.style_encoder(x_ref, y_ref)
+    masks = nets.fan.get_heatmap(x_src) if args.w_hpf > 0 else None
+    x_fake = nets.generator(x_src, s_ref, masks=masks)
+    s_src = nets.style_encoder(x_src, y_src)
+    masks = nets.fan.get_heatmap(x_fake) if args.w_hpf > 0 else None
+    x_rec = nets.generator(x_fake, s_src, masks=masks)
+    return x_src, x_ref, x_fake, x_rec
+
+
+@torch.no_grad()
 def translate_and_reconstruct(nets, args, x_src, y_src, x_ref, y_ref, filename):
     N, C, H, W = x_src.size()
     s_ref = nets.style_encoder(x_ref, y_ref)
