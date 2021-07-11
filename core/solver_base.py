@@ -186,8 +186,8 @@ class SolverBase(nn.Module):
 
         self._load_checkpoint()
         # fetcher_val = InputFetcher(loaders.val, None, self.args.latent_dim, 'val')
-        # out_path = Path(self.args.sample_dir) / "test"
-        # out_path.mkdir(exist_ok=True, parents=True)
+        out_path = Path(self.args.sample_dir) / "test"
+        out_path.mkdir(exist_ok=True, parents=True)
         print("Testing on validation set ")
 
         # fetcher_val = InputFetcher(loaders.val, None, self.args.latent_dim, 'val')
@@ -384,6 +384,8 @@ class SolverBase(nn.Module):
                     emonet_a_loss_y2x2y += [arousal_loss.item()]
                     emonet_exp_loss_y2x2y += [expression_loss.item()]
 
+        import pickle as pkl
+
         if self.args.direction in ['bi', 'x2y']:
             names_x2y = ["pixel_loss_x2y" ,"vgg_loss_x2y", "fr_loss_x2y", "emonet_f1_loss_x2y", "emonet_f2_loss_x2y", "emonet_v_loss_x2y", "emonet_a_loss_x2y", "emonet_exp_loss_x2y"]
             losses_x2y = [pixel_loss_x2y ,vgg_loss_x2y, fr_loss_x2y, emonet_f1_loss_x2y, emonet_f2_loss_x2y, emonet_v_loss_x2y, emonet_a_loss_x2y, emonet_exp_loss_x2y]
@@ -395,6 +397,10 @@ class SolverBase(nn.Module):
             self.logger.log_metrics({f"test/{key}": value for key, value in n2l_x2y_mean.items()})
             self.logger.log_metrics({f"test/{key}_items": value for key, value in n2l_x2y.items()})
 
+            with open(out_path / "losses_x2y.pkl", "wb") as f:
+                pkl.dump(n2l_x2y, f)
+                pkl.dump(n2l_x2y_mean, f)
+
             names_x2y2x = ["pixel_loss_x2y2x" , "vgg_loss_x2y2x" , "fr_loss_x2y2x", "emonet_f1_loss_x2y2x", "emonet_f2_loss_x2y2x", "emonet_v_loss_x2y2x" , "emonet_a_loss_x2y2x", "emonet_exp_loss_x2y2x"]
             losses_x2y2x = [pixel_loss_x2y2x , vgg_loss_x2y2x , fr_loss_x2y2x, emonet_f1_loss_x2y2x, emonet_f2_loss_x2y2x, emonet_v_loss_x2y2x , emonet_a_loss_x2y2x, emonet_exp_loss_x2y2x]
             n2l_x2y2x = dict(zip(names_x2y2x, losses_x2y2x))
@@ -405,6 +411,10 @@ class SolverBase(nn.Module):
                 n2l_x2y2x_mean[loss] = n2l_x2y2x[loss].mean()
             self.logger.log_metrics({f"test/{key}": value for key, value in n2l_x2y_mean.items()})
             self.logger.log_metrics({f"test/{key}_items": value for key, value in n2l_x2y2x.items()})
+
+            with open(out_path / "losses_x2y2x.pkl", "wb") as f:
+                pkl.dump(n2l_x2y2x, f)
+                pkl.dump(n2l_x2y2x_mean, f)
 
 
         if self.args.direction in ['bi', 'y2x']:
@@ -418,6 +428,11 @@ class SolverBase(nn.Module):
             self.logger.log_metrics({f"test/{key}": value for key, value in n2l_y2x_mean.items()})
             self.logger.log_metrics({f"test/{key}_items": value for key, value in n2l_y2x.items()})
 
+
+            with open(out_path / "losses_y2x.pkl", "wb") as f:
+                pkl.dump(n2l_y2x, f)
+                pkl.dump(n2l_y2x_mean, f)
+
             names_y2x2y = ["pixel_loss_y2x2y" , "vgg_loss_y2x2y" , "fr_loss_y2x2y", "emonet_f1_loss_y2x2y", "emonet_f2_loss_y2x2y", "emonet_v_loss_y2x2y" , "emonet_a_loss_y2x2y", "emonet_exp_loss_y2x2y"]
             losses_y2x2y = [pixel_loss_y2x2y , vgg_loss_y2x2y , fr_loss_y2x2y, emonet_f1_loss_y2x2y, emonet_f2_loss_y2x2y, emonet_v_loss_y2x2y , emonet_a_loss_y2x2y, emonet_exp_loss_y2x2y]
             n2l_y2x2y =  dict(zip(names_y2x2y, losses_y2x2y))
@@ -429,6 +444,9 @@ class SolverBase(nn.Module):
             self.logger.log_metrics({f"test/{key}_items": value for key, value in n2l_y2x2y.items()})
 
 
+            with open(out_path / "losses_y2x2y.pkl", "wb") as f:
+                pkl.dump(n2l_y2x2y, f)
+                pkl.dump(n2l_y2x2y_mean, f)
 
 
 
