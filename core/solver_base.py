@@ -409,7 +409,7 @@ class SolverBase(nn.Module):
             for loss, value in n2l_x2y2x.items():
                 n2l_x2y2x[loss] = np.array(value)
                 n2l_x2y2x_mean[loss] = n2l_x2y2x[loss].mean()
-            self.logger.log_metrics({f"test/{key}": value for key, value in n2l_x2y_mean.items()})
+            self.logger.log_metrics({f"test/{key}": value for key, value in n2l_x2y2x.items()})
             self.logger.log_metrics({f"test/{key}_items": value for key, value in n2l_x2y2x.items()})
 
             with open(out_path / "losses_x2y2x.pkl", "wb") as f:
