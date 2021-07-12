@@ -246,8 +246,8 @@ class SolverBase(nn.Module):
         from tqdm import auto
 
         for bi in auto.tqdm(range(len(loaders.val) // loaders.val.batch_size)):
-            if bi == 10:
-                break
+            # if bi == 10:
+            #     break
             inputs = next(fetcher_val)
             x_src_, y_src_ = inputs.x_src
             x_ref_, y_ref_ = inputs.x_ref
