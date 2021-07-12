@@ -201,6 +201,7 @@ class SolverBase(nn.Module):
         emonet_v_loss_x2y = []
         emonet_a_loss_x2y = []
         emonet_exp_loss_x2y = []
+        adv_loss_x2y = []
 
         pixel_loss_x2y2x = []
         vgg_loss_x2y2x = []
@@ -210,6 +211,7 @@ class SolverBase(nn.Module):
         emonet_v_loss_x2y2x = []
         emonet_a_loss_x2y2x = []
         emonet_exp_loss_x2y2x = []
+        adv_loss_x2y2x = []
 
         pixel_loss_y2x = []
         vgg_loss_y2x = []
@@ -219,6 +221,7 @@ class SolverBase(nn.Module):
         emonet_v_loss_y2x = []
         emonet_a_loss_y2x = []
         emonet_exp_loss_y2x = []
+        adv_loss_y2x = []
 
         pixel_loss_y2x2y = []
         vgg_loss_y2x2y = []
@@ -228,6 +231,7 @@ class SolverBase(nn.Module):
         emonet_v_loss_y2x2y = []
         emonet_a_loss_y2x2y = []
         emonet_exp_loss_y2x2y = []
+        adv_loss_y2x2y = []
 
         vgg_loss = VGG19Loss(dict(zip(self.args.vgg_loss_layers, self.args.lambda_vgg_layers)))
         facerec_loss = VGGFace2Loss(metric='cos', unnormalize=True)
@@ -288,6 +292,13 @@ class SolverBase(nn.Module):
                     emonet_v_loss_x2y += [valence_loss.item()]
                     emonet_a_loss_x2y += [arousal_loss.item()]
                     emonet_exp_loss_x2y += [expression_loss.item()]
+                # adv loss
+
+                out = F.sigmoid(self.nets.discriminator(x_fake, labels_all_ref)).mean().item()
+                adv_loss_x2y += [out]
+
+                # out = self.nets.discriminator(x_fake, labels_all_ref)
+                # adv_loss_x2y += [adv_loss(out, 1).item()]
 
                 # CYCLE
                 # photometric
@@ -317,6 +328,12 @@ class SolverBase(nn.Module):
                     emonet_a_loss_x2y2x += [arousal_loss.item()]
                     emonet_exp_loss_x2y2x += [expression_loss.item()]
 
+                # adv loss
+                out = F.sigmoid(self.nets.discriminator(x_rec, labels_all_src)).mean().item()
+                adv_loss_x2y2x += [out]
+
+                # out = self.nets.discriminator(x_rec, labels_all_src)
+                # adv_loss_x2y2x += [adv_loss(out, 1).item()]
 
             # 2) other way
             if self.args.direction in ['bi', 'y2x']:
@@ -357,6 +374,13 @@ class SolverBase(nn.Module):
                     emonet_a_loss_y2x += [arousal_loss.item()]
                     emonet_exp_loss_y2x += [expression_loss.item()]
 
+                # adv loss
+                out = F.sigmoid(self.nets.discriminator(x_fake, labels_all_ref)).mean().item()
+                adv_loss_y2x += [out]
+
+                # out = self.nets.discriminator(x_fake, labels_all_ref)
+                # adv_loss_y2x += [adv_loss(out, 1).item()]
+
                 # CYCLE
                 # photometric
                 half_cycle_y = torch.mean(torch.abs(x_src - x_rec))
@@ -383,6 +407,12 @@ class SolverBase(nn.Module):
                     emonet_v_loss_y2x2y += [valence_loss.item()]
                     emonet_a_loss_y2x2y += [arousal_loss.item()]
                     emonet_exp_loss_y2x2y += [expression_loss.item()]
+
+                # adv loss
+                out = F.sigmoid(self.nets.discriminator(x_rec, labels_all_src)).mean().item()
+                adv_loss_y2x2y += [out]
+                # out = self.nets.discriminator(x_rec, labels_all_src)
+                # adv_loss_y2x2y += [adv_loss(out, 1).item()]
 
         import pickle as pkl
 
