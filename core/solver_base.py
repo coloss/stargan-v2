@@ -246,8 +246,8 @@ class SolverBase(nn.Module):
         from tqdm import auto
 
         for bi in auto.tqdm(range(len(loaders.val) // loaders.val.batch_size)):
-            # if bi == 10:
-            #     break
+            if bi == 10:
+                break
             inputs = next(fetcher_val)
             x_src_, y_src_ = inputs.x_src
             x_ref_, y_ref_ = inputs.x_ref
@@ -439,7 +439,7 @@ class SolverBase(nn.Module):
             for loss, value in n2l_x2y2x.items():
                 n2l_x2y2x[loss] = np.array(value)
                 n2l_x2y2x_mean[loss] = n2l_x2y2x[loss].mean()
-            self.logger.log_metrics({f"test/{key}": value for key, value in n2l_x2y2x.items()})
+            self.logger.log_metrics({f"test/{key}": value for key, value in n2l_x2y2x_mean.items()})
             self.logger.log_metrics({f"test/{key}_items": value for key, value in n2l_x2y2x.items()})
 
             with open(out_path / "losses_x2y2x.pkl", "wb") as f:
