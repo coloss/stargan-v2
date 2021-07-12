@@ -417,8 +417,8 @@ class SolverBase(nn.Module):
         import pickle as pkl
 
         if self.args.direction in ['bi', 'x2y']:
-            names_x2y = ["pixel_loss_x2y" ,"vgg_loss_x2y", "fr_loss_x2y", "emonet_f1_loss_x2y", "emonet_f2_loss_x2y", "emonet_v_loss_x2y", "emonet_a_loss_x2y", "emonet_exp_loss_x2y"]
-            losses_x2y = [pixel_loss_x2y ,vgg_loss_x2y, fr_loss_x2y, emonet_f1_loss_x2y, emonet_f2_loss_x2y, emonet_v_loss_x2y, emonet_a_loss_x2y, emonet_exp_loss_x2y]
+            names_x2y = ["pixel_loss_x2y" ,"vgg_loss_x2y", "fr_loss_x2y", "emonet_f1_loss_x2y", "emonet_f2_loss_x2y", "emonet_v_loss_x2y", "emonet_a_loss_x2y", "emonet_exp_loss_x2y", "adv_loss_x2y"]
+            losses_x2y = [pixel_loss_x2y ,vgg_loss_x2y, fr_loss_x2y, emonet_f1_loss_x2y, emonet_f2_loss_x2y, emonet_v_loss_x2y, emonet_a_loss_x2y, emonet_exp_loss_x2y, adv_loss_x2y]
             n2l_x2y = dict(zip(names_x2y, losses_x2y))
             n2l_x2y_mean = {}
             for loss, value in n2l_x2y.items():
@@ -431,8 +431,8 @@ class SolverBase(nn.Module):
                 pkl.dump(n2l_x2y, f)
                 pkl.dump(n2l_x2y_mean, f)
 
-            names_x2y2x = ["pixel_loss_x2y2x" , "vgg_loss_x2y2x" , "fr_loss_x2y2x", "emonet_f1_loss_x2y2x", "emonet_f2_loss_x2y2x", "emonet_v_loss_x2y2x" , "emonet_a_loss_x2y2x", "emonet_exp_loss_x2y2x"]
-            losses_x2y2x = [pixel_loss_x2y2x , vgg_loss_x2y2x , fr_loss_x2y2x, emonet_f1_loss_x2y2x, emonet_f2_loss_x2y2x, emonet_v_loss_x2y2x , emonet_a_loss_x2y2x, emonet_exp_loss_x2y2x]
+            names_x2y2x = ["pixel_loss_x2y2x" , "vgg_loss_x2y2x" , "fr_loss_x2y2x", "emonet_f1_loss_x2y2x", "emonet_f2_loss_x2y2x", "emonet_v_loss_x2y2x" , "emonet_a_loss_x2y2x", "emonet_exp_loss_x2y2x", "adv_loss_x2y2x"]
+            losses_x2y2x = [pixel_loss_x2y2x , vgg_loss_x2y2x , fr_loss_x2y2x, emonet_f1_loss_x2y2x, emonet_f2_loss_x2y2x, emonet_v_loss_x2y2x , emonet_a_loss_x2y2x, emonet_exp_loss_x2y2x, adv_loss_x2y2x]
             n2l_x2y2x = dict(zip(names_x2y2x, losses_x2y2x))
             n2l_x2y2x_mean = {}
 
@@ -448,8 +448,8 @@ class SolverBase(nn.Module):
 
 
         if self.args.direction in ['bi', 'y2x']:
-            names_y2x = ["pixel_loss_y2x" ,"vgg_loss_y2x", "fr_loss_y2x", "emonet_f1_loss_y2x", "emonet_f2_loss_y2x", "emonet_v_loss_y2x", "emonet_a_loss_y2x", "emonet_exp_loss_y2x"]
-            losses_y2x = [pixel_loss_y2x ,vgg_loss_y2x, fr_loss_y2x, emonet_f1_loss_y2x, emonet_f2_loss_y2x, emonet_v_loss_y2x, emonet_a_loss_y2x, emonet_exp_loss_y2x]
+            names_y2x = ["pixel_loss_y2x" ,"vgg_loss_y2x", "fr_loss_y2x", "emonet_f1_loss_y2x", "emonet_f2_loss_y2x", "emonet_v_loss_y2x", "emonet_a_loss_y2x", "emonet_exp_loss_y2x", "adv_loss_y2x"]
+            losses_y2x = [pixel_loss_y2x ,vgg_loss_y2x, fr_loss_y2x, emonet_f1_loss_y2x, emonet_f2_loss_y2x, emonet_v_loss_y2x, emonet_a_loss_y2x, emonet_exp_loss_y2x, adv_loss_y2x]
             n2l_y2x = dict(zip(names_y2x, losses_y2x))
             n2l_y2x_mean = {}
             for loss, value in n2l_y2x.items():
@@ -463,8 +463,8 @@ class SolverBase(nn.Module):
                 pkl.dump(n2l_y2x, f)
                 pkl.dump(n2l_y2x_mean, f)
 
-            names_y2x2y = ["pixel_loss_y2x2y" , "vgg_loss_y2x2y" , "fr_loss_y2x2y", "emonet_f1_loss_y2x2y", "emonet_f2_loss_y2x2y", "emonet_v_loss_y2x2y" , "emonet_a_loss_y2x2y", "emonet_exp_loss_y2x2y"]
-            losses_y2x2y = [pixel_loss_y2x2y , vgg_loss_y2x2y , fr_loss_y2x2y, emonet_f1_loss_y2x2y, emonet_f2_loss_y2x2y, emonet_v_loss_y2x2y , emonet_a_loss_y2x2y, emonet_exp_loss_y2x2y]
+            names_y2x2y = ["pixel_loss_y2x2y" , "vgg_loss_y2x2y" , "fr_loss_y2x2y", "emonet_f1_loss_y2x2y", "emonet_f2_loss_y2x2y", "emonet_v_loss_y2x2y" , "emonet_a_loss_y2x2y", "emonet_exp_loss_y2x2y", "adv_loss_y2x2y"]
+            losses_y2x2y = [pixel_loss_y2x2y , vgg_loss_y2x2y , fr_loss_y2x2y, emonet_f1_loss_y2x2y, emonet_f2_loss_y2x2y, emonet_v_loss_y2x2y , emonet_a_loss_y2x2y, emonet_exp_loss_y2x2y, adv_loss_y2x2y]
             n2l_y2x2y =  dict(zip(names_y2x2y, losses_y2x2y))
             n2l_y2x2y_mean = {}
             for loss, value in n2l_y2x2y.items():
