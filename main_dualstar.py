@@ -28,47 +28,92 @@ def subdirs(dname):
     return [d for d in os.listdir(dname)
             if os.path.isdir(os.path.join(dname, d))]
 
-
-def main(args):
-    print(args)
-    cudnn.benchmark = True
-    torch.manual_seed(args.seed)
-
+def train(args):
+    if not hasattr(args, 'domain_names') or len(args.domain_names) == 0:
+        assert len(subdirs(args.train_img_dir)) == args.num_domains
+        assert len(subdirs(args.val_img_dir)) == args.num_domains
+    else:
+        assert len(args.domain_names) == args.num_domains
     domains_to_split = []
     if args.split_x_domain:
         domains_to_split += [0]
     if args.split_y_domain:
         domains_to_split += [1]
 
+    loaders = Munch(src=get_train_loader(root=args.train_img_dir,
+                                         which='correspondence',
+                                         domain_names=args.domain_names,
+                                         domains_to_split=domains_to_split,
+                                         img_size=args.img_size,
+                                         batch_size=args.batch_size,
+                                         prob=args.randcrop_prob,
+                                         shuffle=True,
+                                         num_workers=args.num_workers),
+                    ref=None,
+                    val=get_test_loader(root=args.val_img_dir,
+                                        which='correspondence',
+                                        domain_names=args.domain_names,
+                                        domains_to_split=domains_to_split,
+                                        img_size=args.img_size,
+                                        batch_size=args.val_batch_size,
+                                        shuffle=True,
+                                        num_workers=args.num_workers))
+    args.num_domains = loaders.src.dataset.num_final_domains()
+    solver = SolverDualStar(args)
+    solver.fit(loaders)
+
+def paired_images(args):
+    domains_to_split = []
+    if args.split_x_domain:
+        domains_to_split += [0]
+    if args.split_y_domain:
+        domains_to_split += [1]
+    loaders = Munch(val=get_test_loader(root=args.val_img_dir,
+                                        which='correspondence',
+                                        domain_names=args.domain_names,
+                                        domains_to_split=domains_to_split,
+                                        img_size=args.img_size,
+                                        batch_size=args.val_batch_size,
+                                        shuffle=True,
+                                        num_workers=args.num_workers))
+    args.num_domains = loaders.val.dataset.num_final_domains()
+
+    solver = SolverDualStar(args)
+    solver.test_paired_images(loaders)
+
+
+def paired_test(args):
+    domains_to_split = []
+    if args.split_x_domain:
+        domains_to_split += [0]
+    if args.split_y_domain:
+        domains_to_split += [1]
+    loaders = Munch(val=get_test_loader(root=args.val_img_dir,
+                                        which='correspondence',
+                                        domain_names=args.domain_names,
+                                        domains_to_split=domains_to_split,
+                                        img_size=args.img_size,
+                                        # batch_size=args.val_batch_size,
+                                        batch_size=1,
+                                        shuffle=False,
+                                        num_workers=args.num_workers),
+                    )
+    args.num_domains = loaders.val.dataset.num_final_domains()
+
+    solver = SolverDualStar(args)
+    solver.test_on_validation_set(loaders)
+
+
+def main(args):
+    print(args)
+    cudnn.benchmark = True
+    torch.manual_seed(args.seed)
 
     if args.mode == 'train':
-        if not hasattr(args, 'domain_names') or len(args.domain_names) == 0:
-            assert len(subdirs(args.train_img_dir)) == args.num_domains
-            assert len(subdirs(args.val_img_dir)) == args.num_domains
-        else:
-            assert len(args.domain_names) == args.num_domains
-
-        loaders = Munch(src=get_train_loader(root= args.train_img_dir,
-                                             which='correspondence',
-                                             domain_names=args.domain_names,
-                                             domains_to_split=domains_to_split,
-                                             img_size=args.img_size,
-                                             batch_size=args.batch_size,
-                                             prob=args.randcrop_prob,
-                                             shuffle=True,
-                                             num_workers=args.num_workers),
-                        ref=None,
-                        val=get_test_loader(root=args.val_img_dir,
-                                            which='correspondence',
-                                            domain_names=args.domain_names,
-                                             domains_to_split=domains_to_split,
-                                            img_size=args.img_size,
-                                            batch_size=args.val_batch_size,
-                                            shuffle=True,
-                                            num_workers=args.num_workers))
-        args.num_domains = loaders.src.dataset.num_final_domains()
-        solver = SolverDualStar(args)
-        solver.fit(loaders)
+        train(args)
+        # the following just to it all in one go
+        paired_images(args)
+        paired_test(args)
     elif args.mode == 'sample':
         assert len(subdirs(args.src_dir)) == args.num_domains
         assert len(subdirs(args.ref_dir)) == args.num_domains
@@ -92,34 +137,9 @@ def main(args):
         solver = SolverDualStar(args)
         solver.evaluate()
     elif args.mode == 'paired_images':
-        loaders = Munch(val=get_test_loader(root=args.val_img_dir,
-                                            which='correspondence',
-                                            domain_names=args.domain_names,
-                                            domains_to_split=domains_to_split,
-                                            img_size=args.img_size,
-                                            batch_size=args.val_batch_size,
-                                            shuffle=True,
-                                            num_workers=args.num_workers))
-        args.num_domains = loaders.val.dataset.num_final_domains()
-
-        solver = SolverDualStar(args)
-        solver.test_paired_images(loaders)
+        paired_images(args)
     elif args.mode == 'paired_test':
-        loaders = Munch(val=get_test_loader(root=args.val_img_dir,
-                                            which='correspondence',
-                                            domain_names=args.domain_names,
-                                            domains_to_split=domains_to_split,
-                                            img_size=args.img_size,
-                                            # batch_size=args.val_batch_size,
-                                            batch_size=1,
-                                            shuffle=False,
-                                            num_workers=args.num_workers),
-                                            )
-        args.num_domains = loaders.val.dataset.num_final_domains()
-
-        solver = SolverDualStar(args)
-        solver.test_on_validation_set(loaders)
-
+        paired_test(args)
     elif args.mode == 'align':
         from core.wing import align_faces
         align_faces(args, args.inp_dir, args.out_dir)
