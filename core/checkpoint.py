@@ -45,6 +45,15 @@ class CheckpointIO(object):
             
         for name, module in self.module_dict.items():
             if self.data_parallel:
-                module.module.load_state_dict(module_dict[name])
+                incompatible_keys = module.module.load_state_dict(module_dict[name], strict=False)
+                # module.module.state_dict.update(module_dict[name])
+                if len(incompatible_keys.missing_keys) > 0:
+                    for key in incompatible_keys.missing_keys:
+                        if "running_" not in key and "num_batches_tracked" not in key:
+                            raise RuntimeError(f"Missing key not allowed: {key}")
+                    print("Found missing keys of the batchnorm layers.")
+                if len(incompatible_keys.unexpected_keys) > 0:
+                    raise RuntimeError('Incompatible')
+
             else:
                 module.load_state_dict(module_dict[name])
