@@ -1,0 +1,15 @@
+numpy~=1.19.5
+opencv-python~=4.1.2.30
+munch~=2.5.0
+scikit-image~=0.16.2
+ffmpeg~=4.0.2
+torchvision~=0.5.0
+tqdm~=4.43.0
+matplotlib~=3.3.4
+albumentations~=1.0.0
+pillow~=7.0.0
+wandb~=0.10.33
+omegaconf~=2.1.0
+pyyaml~=5.4.1
+scipy~=1.2.1
+setuptools~=49.6.0
